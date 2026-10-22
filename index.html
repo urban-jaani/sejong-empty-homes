@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>세종시 빈집 현황판</title>
 
+  .bar-track {
+  background: #e7eee3;
+  border-radius: 6px;
+  height: 16px;
+  min-width: 100px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  background: #57956b;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.share {
+  font-size: 12px;
+  color: #526b5a;
+}
   <style>
     body {
       font-family: "Malgun Gothic", sans-serif;
@@ -107,12 +125,13 @@
   </p>
 
   <table>
-    <thead>
-      <tr>
-        <th>지역</th>
-        <th>조사 기록 수</th>
-      </tr>
-    </thead>
+   <thead>
+  <tr>
+    <th>지역</th>
+    <th>조사 기록 수</th>
+    <th>전체에서 차지하는 비율</th>
+  </tr>
+</thead>
     <tbody id="regionTable"></tbody>
   </table>
 
@@ -242,8 +261,29 @@
           nameCell.textContent = region;
           countCell.textContent = count.toLocaleString() + "건";
 
-          tr.append(nameCell, countCell);
-          regionTable.append(tr);
+          // 전체 기록 중 이 지역의 비율을 계산합니다.
+const percent = (count / total) * 100;
+
+// 막대를 넣을 칸을 만듭니다.
+const chartCell = document.createElement("td");
+
+const track = document.createElement("div");
+track.className = "bar-track";
+
+const fill = document.createElement("div");
+fill.className = "bar-fill";
+fill.style.width = percent + "%";
+
+const label = document.createElement("span");
+label.className = "share";
+label.textContent = percent.toFixed(1) + "%";
+
+track.append(fill);
+chartCell.append(track, label);
+
+// 지역명, 건수, 막대그래프를 한 줄에 넣습니다.
+tr.append(nameCell, countCell, chartCell);
+regionTable.append(tr);
         }
 
         message.textContent =

@@ -29,6 +29,26 @@
     font-size: 17px;
     line-height: 1.8;
   }
+.cards {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: white;
+  border: 1px solid #dfe7e1;
+  border-radius: 12px;
+  padding: 24px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.card strong {
+  display: block;
+  font-size: 36px;
+  color: #21664f;
+}
 </style>
 </head>
 <body>
@@ -36,6 +56,18 @@
   <p>세종시 빈집은 어디에 많을까?</p>
 
   <h2>조사 현황</h2>
-  <p>이곳에 지역별 조사 건수와 지도를 추가할 예정입니다.</p>
+<p>화면 만들기 연습용 예시 데이터입니다.</p>
+
+<div class="cards">
+  <div class="card">
+    <span>조사 기록 수</span>
+    <strong>100건</strong>
+  </div>
+
+  <div class="card">
+    <span>조사 지역 수</span>
+    <strong>10곳</strong>
+  </div>
+</div>
 </body>
 </html>

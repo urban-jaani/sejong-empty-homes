@@ -102,6 +102,10 @@ td:last-child {
   <p>세종시 빈집은 어디에 많을까?</p>
 
   <h2>조사 현황</h2>
+  <label for="excelFile">빈집 조사 엑셀 선택</label>
+<input type="file" id="excelFile" accept=".xlsx,.xls">
+
+<p id="fileMessage">아직 파일을 선택하지 않았습니다.</p>
 <p>화면 만들기 연습용 예시 데이터입니다.</p>
 
 <div class="cards">
@@ -115,5 +119,21 @@ td:last-child {
     <strong>3곳</strong>
   </div>
 </div>
+<script>
+  const fileInput = document.getElementById("excelFile");
+  const message = document.getElementById("fileMessage");
+
+  fileInput.addEventListener("change", function () {
+    const file = fileInput.files[0];
+
+    if (!file) {
+      message.textContent = "아직 파일을 선택하지 않았습니다.";
+      return;
+    }
+
+    message.textContent = "선택한 파일: " + file.name;
+  });
+</script>
 </body>
+  
 </html>

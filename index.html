@@ -4,7 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>세종시 빈집 현황판</title>
-<style>
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th, td {
+  padding: 16px;
+  border-bottom: 1px solid #dfe7e1;
+  text-align: left;
+}
+
+th {
+  background: #21664f;
+  color: white;
+}
+
+td:last-child {
+  font-weight: bold;
+}
+  <style>
   body {
     font-family: "Malgun Gothic", sans-serif;
     background-color: #f3f5ef;
@@ -51,7 +71,33 @@
 }
 </style>
 </head>
-<body>
+<<h2>지역별 조사 현황</h2>
+<p>연습용 예시입니다. 아래 세 지역의 합계는 100건입니다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>지역</th>
+      <th>조사 기록 수</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>조치원읍</td>
+      <td>40건</td>
+    </tr>
+    <tr>
+      <td>금남면</td>
+      <td>35건</td>
+    </tr>
+    <tr>
+      <td>전의면</td>
+      <td>25건</td>
+    </tr>
+  </tbody>
+</table>
+  body>
   <h1>세종시 빈집 현황판</h1>
   <p>세종시 빈집은 어디에 많을까?</p>
 
@@ -66,7 +112,7 @@
 
   <div class="card">
     <span>조사 지역 수</span>
-    <strong>10곳</strong>
+    <strong>3곳</strong>
   </div>
 </div>
 </body>

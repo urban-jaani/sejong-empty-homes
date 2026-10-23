@@ -261,6 +261,7 @@ summary { cursor:pointer; font-weight:bold; }
 
 <main class="dashboard-grid">
 <aside class="dashboard-left" aria-label="카테고리와 지역 선택"><h2>빈집 현황 보기</h2><nav class="category-buttons" aria-label="통계 카테고리"><button type="button" data-category="all" aria-pressed="false">전체 요약</button><button type="button" data-category="grade" aria-pressed="false">등급 현황</button><button type="button" data-category="approval" aria-pressed="false">사용승인 현황</button><button type="button" data-category="area" aria-pressed="false">면적 기초통계</button><button type="button" data-category="point" aria-pressed="false">선택한 빈집 상세</button></nav>
+<h3 id="gradeFilterLabel">조회 등급</h3><div id="gradeFilters" class="region-buttons" role="group" aria-labelledby="gradeFilterLabel"><button type="button" class="region-button" data-grade="all" aria-pressed="true">전체 등급</button><button type="button" class="region-button" data-grade="1" aria-pressed="false">🟢 1등급</button><button type="button" class="region-button" data-grade="2" aria-pressed="false">🟡 2등급</button><button type="button" class="region-button" data-grade="3" aria-pressed="false">🟠 3등급</button><button type="button" class="region-button" data-grade="4" aria-pressed="false">🔴 4등급</button><button type="button" class="region-button" data-grade="unknown" aria-pressed="false">신규·미기재·기타</button></div><p style="font-size:11px;color:#607168">(구)등급도 같은 숫자의 등급에 포함합니다.</p>
   <span id="regionLabel">조회 지역</span>
   <div id="regionButtons" class="region-buttons"
        role="group" aria-labelledby="regionLabel">
@@ -328,7 +329,7 @@ summary { cursor:pointer; font-weight:bold; }
       <span><i style="background:#347454"></i>90건 이상</span>
     </div>
     <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
-    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색 면은 자료가 없거나 선택에서 제외된 지역입니다. 면의 색은 조사 건수, 점의 색은 등급을 나타냅니다. 같은 위치에 여러 등급이 있으면 숫자가 가장 높은 등급 색으로 표시합니다. (구)등급도 같은 숫자의 색을 사용하며, 원본 표기는 상세창에서 확인할 수 있습니다.</p>
+    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색 면은 자료가 없거나 선택에서 제외된 지역입니다. 면의 색은 선택 등급의 조사 건수, 점의 색은 등급을 나타냅니다. 같은 위치에 여러 등급이 있으면 숫자가 가장 높은 등급 색으로 표시합니다. (구)등급도 같은 숫자의 색을 사용하며, 원본 표기는 상세창에서 확인할 수 있습니다.</p>
     <p id="pointStatus" class="map-note" role="status">좌표 CSV를 선택하면 점이 나타납니다.</p>
     <details class="map-note"><summary>지도 출처와 기준</summary>
       <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
@@ -381,12 +382,12 @@ summary { cursor:pointer; font-weight:bold; }
     <p id="statsScope" role="status">조사자료를 선택하세요.</p>
     <p id="statsReload" role="status"></p>
     <div class="stats-grid">
-      <div id="gradePanel"><h3>등급 현황</h3><div id="gradeChart" class="stat-chart" aria-label="등급 현황 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></details></div>
-      <div id="approvalPanel"><h3>사용승인연도 분포</h3><div id="approvalChart" class="stat-chart" aria-label="사용승인연도 분포 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></details></div>
+      <div id="gradePanel"><h3>등급 현황</h3><div id="gradeChart" class="stat-chart" aria-label="등급 현황 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 조건 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></details></div>
+      <div id="approvalPanel"><h3>사용승인연도 분포</h3><div id="approvalChart" class="stat-chart" aria-label="사용승인연도 분포 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 조건 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></details></div>
     </div>
     <div id="areaPanel"><h3>면적 평균</h3><div id="areaCards" class="area-stat-cards"></div><details class="stat-table"><summary>상세 수치 보기 · 산정·제외 건수</summary>
     <div style="overflow-x:auto"><table><thead><tr><th>항목</th><th>평균 면적</th><th>평균 산정 기록</th><th>0㎡ 제외</th><th>미기재·오류 제외</th></tr></thead><tbody id="areaStats"></tbody></table></div></details>
-    </div><p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역의 전체 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
+    </div><p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역·등급에 해당하는 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
   </section>
 <section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">빈집 점을 누르면 주소와 상세정보가 나타납니다.</div>
 </section></aside>
@@ -428,6 +429,21 @@ const fileInput = document.getElementById('excelFile');
 const message = document.getElementById('fileMessage');
 const regionButtons = document.getElementById('regionButtons');
 let selectedRegion = '';
+let selectedGrade = 'all';
+function gradeKey(record){
+  const match=String(record.grade??'').replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급$/);
+  return match?match[1]:'unknown';
+}
+function matchesGrade(record){return selectedGrade==='all'||gradeKey(record)===selectedGrade;}
+function gradeDescription(){return selectedGrade==='all'?'전체 등급':selectedGrade==='unknown'?'신규·미기재·기타':selectedGrade+'등급';}
+function filteredCounts(){const counts=new Map();for(const r of allRecords)if(matchesGrade(r))counts.set(r.region,(counts.get(r.region)||0)+1);return counts;}
+function resetGrade(){selectedGrade='all';for(const b of document.querySelectorAll('[data-grade]'))b.setAttribute('aria-pressed',String(b.dataset.grade==='all'));}
+for(const button of document.querySelectorAll('[data-grade]'))button.addEventListener('click',()=>{
+  selectedGrade=button.dataset.grade;
+  for(const b of document.querySelectorAll('[data-grade]'))b.setAttribute('aria-pressed',String(b===button));
+  document.getElementById('pointDetails').textContent='선택 조건이 바뀌었습니다. 지도에서 빈집 점을 선택하세요.';
+  renderResults();
+});
 const totalCount = document.getElementById('totalCount');
 const regionCount = document.getElementById('regionCount');
 const regionTable = document.getElementById('regionTable');
@@ -449,6 +465,7 @@ function resetResults() {
   document.getElementById('detailMessage').textContent =
     '엑셀을 선택하면 상세 목록이 나타납니다.';
   selectedRegion = '';
+  resetGrade();
   buildRegionButtons();
   regionTable.replaceChildren();
   totalCount.textContent = '—';
@@ -490,7 +507,7 @@ function renderStatsCharts(stats,total){
   function bars(id,entries){
     const box=document.getElementById(id);box.replaceChildren();
     if(!total){const p=document.createElement('p');p.textContent='표시할 조사자료가 없습니다.';box.append(p);return;}
-    const note=document.createElement('p');note.className='chart-caption';note.textContent='선택 지역 내 비율 · 막대 전체 길이 = 100%';box.append(note);
+    const note=document.createElement('p');note.className='chart-caption';note.textContent='선택 조건 내 비율 · 막대 전체 길이 = 100%';box.append(note);
     for(const [name,count] of entries){
       const percent=count/total*100;
       const row=document.createElement('div');row.className='stat-bar-row';
@@ -516,8 +533,8 @@ function renderStatsCharts(stats,total){
 }
 
 function renderBasicStats() {
-  const records=allRecords.filter(r=>!selectedRegion||r.region===selectedRegion),stats=computeBasicStats(records);
-  document.getElementById('statsScope').textContent=(selectedRegion||'세종 전체')+' · 조사 기록 '+records.length+'건 기준';
+  const records=allRecords.filter(r=>(!selectedRegion||r.region===selectedRegion)&&matchesGrade(r)),stats=computeBasicStats(records);
+  document.getElementById('statsScope').textContent=(selectedRegion||'세종 전체')+' · '+gradeDescription()+' · 조사 기록 '+records.length+'건 기준';
   document.getElementById('statsReload').textContent=records.some(r=>r.statsVersion!==1)?'연도와 면적을 모두 집계하려면 원본 조사 엑셀을 한 번 다시 선택하세요.':'';
   function row(body,values,total=false){const tr=document.createElement('tr');if(total)tr.className='stats-total';for(const value of values){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}
   function distribution(id,entries){const body=document.getElementById(id);body.replaceChildren();for(const [name,count]of entries)row(body,[name,count.toLocaleString()+'건',records.length?(count/records.length*100).toFixed(1)+'%':'—']);row(body,['합계',records.length.toLocaleString()+'건',records.length?'100.0%':'—'],true);}
@@ -530,13 +547,13 @@ function renderBasicStats() {
 
 function renderDetails() {
   const records = allRecords.filter(record =>
-    !selectedRegion || record.region === selectedRegion
+    (!selectedRegion || record.region === selectedRegion) && matchesGrade(record)
   );
 
   const tbody = document.getElementById('detailTable');
   tbody.replaceChildren();
   document.getElementById('detailMessage').textContent =
-    (selectedRegion || '세종 전체') + ' · ' +
+    (selectedRegion || '세종 전체') + ' · ' + gradeDescription() + ' · ' +
     records.length.toLocaleString() + '건 · 엑셀 순서대로 표시';
 
   records.forEach((record, index) => {
@@ -562,7 +579,7 @@ function renderResults() {
   renderDetails();
   renderBasicStats();
   const selected = selectedRegion;
-  const entries = [...allCounts.entries()]
+  const entries = [...filteredCounts().entries()]
     .filter(([region]) => !selected || region === selected)
     .sort((a, b) => b[1] - a[1]);
 
@@ -577,7 +594,7 @@ function renderResults() {
     : '—';
 
   selectionMessage.textContent =
-    (selected || '세종 전체') + ' · ' + visibleTotal.toLocaleString() +
+    (selected || '세종 전체') + ' · ' + gradeDescription() + ' · ' + visibleTotal.toLocaleString() +
     '건 표시 / 파일 전체 ' + allTotal.toLocaleString() +
     '건. 비율은 지역 선택과 관계없이 파일 전체 기록을 기준으로 합니다.';
 
@@ -713,6 +730,7 @@ fileInput.addEventListener('change', async function () {
 
     // 파일을 새로 읽으면 전체 조회로 시작합니다.
     selectedRegion = '';
+    resetGrade();
     buildRegionButtons();
     renderResults();
     const unknown = allCounts.get(unknownRegion) || 0;
@@ -779,14 +797,14 @@ function updateMap() {
   if(!liveMap)return;
   const opacity=Number(document.getElementById('boundaryOpacity').value)/100;
   for(const {name,layer} of mapShapes){
-    const n=allCounts.get(name)||0,other=selectedRegion&&name!==selectedRegion;
+    const n=filteredCounts().get(name)||0,other=selectedRegion&&name!==selectedRegion;
     const color=other||!n?'#aeb6b1':n<30?'#d7e8c6':n<60?'#a8cb9c':n<90?'#70a67a':'#347454';
     layer.setStyle({fillColor:color,fillOpacity:opacity,color:selectedRegion===name?'#b36b00':'#526b5a',weight:selectedRegion===name?3:1});
     const text=document.createElement('span');text.textContent=name+' · '+(n?n+'건':'자료 없음');layer.setTooltipContent(text);
   }
   const names=new Set(mapShapes.map(s=>s.name));
-  const missing=[...allCounts].reduce((sum,[n,c])=>sum+(names.has(n)?0:c),0);
-  document.getElementById('mapStatus').textContent=(selectedRegion||'세종 전체')+' · 지역을 누르면 해당 지역을 선택합니다.'+(missing?' 지도에 연결되지 않은 '+missing+'건은 표를 확인하세요.':'');
+  const missing=[...filteredCounts()].reduce((sum,[n,c])=>sum+(names.has(n)?0:c),0);
+  document.getElementById('mapStatus').textContent=(selectedRegion||'세종 전체')+' · '+gradeDescription()+' · 지역을 누르면 해당 지역을 선택합니다.'+(missing?' 지도에 연결되지 않은 '+missing+'건은 표를 확인하세요.':'');
   renderPoints();
 }
 const baseKeyStorageName='sejong-dashboard:v1:'+new URL('.',location.href).pathname+':vworld-key';
@@ -853,7 +871,7 @@ function projectCoordinate(longitude, latitude) {
 
 function pointGradeStyle(points) {
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
-  const records=allRecords.filter(r=>addresses.has(normalizeAddress(r.address)));
+  const records=allRecords.filter(r=>addresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&(!selectedRegion||r.region===selectedRegion));
   const labels=[...new Set(records.map(r=>String(r.grade??'').trim()||'미기재'))];
   const numbers=labels.map(label=>label.replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급$/)).filter(Boolean).map(match=>Number(match[1]));
   const grade=numbers.length?Math.max(...numbers):null;
@@ -865,7 +883,7 @@ function pointGradeStyle(points) {
 function createHouseDetails(points) {
   const box=document.createElement('div');box.className='house-details';
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
-  const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address)));
+  const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&(!selectedRegion||r.region===selectedRegion));
   const heading=document.createElement('strong');heading.textContent='빈집 조사 상세 · '+matches.length+'건';box.append(heading);
   const gradeStyle=pointGradeStyle(points), gradeNote=document.createElement('p');
   gradeNote.textContent='점 색상: '+gradeStyle.label+' · 원본 등급: '+gradeStyle.original+(gradeStyle.mixed?' · 같은 위치의 여러 등급 중 숫자가 가장 높은 등급 색을 표시합니다.':'');
@@ -894,7 +912,8 @@ function renderPoints() {
   const status=document.getElementById('pointStatus');
   if(!pointLayer){if(coordinateLoaded)status.textContent='저장된 좌표를 복원했습니다. 지도 준비 후 표시합니다.';return;}
   pointLayer.clearLayers();
-  const shown=coordinateRecords.filter(p=>!selectedRegion||p.region===selectedRegion);
+  const allowedAddresses=new Set(allRecords.filter(r=>matchesGrade(r)&&(!selectedRegion||r.region===selectedRegion)).map(r=>normalizeAddress(r.address)));
+  const shown=coordinateRecords.filter(p=>(!selectedRegion||p.region===selectedRegion)&&(selectedGrade==='all'||allowedAddresses.has(normalizeAddress(p.address))));
   const groups=new Map();
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   for(const points of groups.values()){
@@ -1014,6 +1033,7 @@ function restoreSurvey() {
   for (const row of allRecords) allCounts.set(row.region, (allCounts.get(row.region) || 0) + 1);
   surveySource = data;
   selectedRegion = '';
+  resetGrade();
   buildRegionButtons();
   renderResults();
   return true;

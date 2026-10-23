@@ -296,8 +296,11 @@ function buildRegionButtons() {
   regionButtons.replaceChildren();
   const names = [...allCounts.keys()]
     .filter(region => region !== unknownRegion)
-    .sort((a, b) => a.localeCompare(b, 'ko'));
-  if (allCounts.has(unknownRegion)) names.push(unknownRegion);
+    .sort((a, b) => {
+  if (a === '조치원읍') return -1;
+  if (b === '조치원읍') return 1;
+  return a.localeCompare(b, 'ko');
+});  if (allCounts.has(unknownRegion)) names.push(unknownRegion);
 
   // 빈 문자열은 '세종 전체'를 뜻합니다.
   for (const region of ['', ...names]) {

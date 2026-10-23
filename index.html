@@ -43,6 +43,14 @@
     .map-note { font-size: 12px; color: #526b5a; margin: 12px 20px; }
     .map-note a { color: #21664f; }
     @media (max-width: 600px) { #sejongMap { height: 500px; } .map-top h2 { font-size: 17px; } }
+
+    .point-controls { padding: 14px 20px; background: #fffaf0; border-bottom: 1px solid #e4dcc9; }
+    .point-controls label { display: block; margin-bottom: 6px; font-weight: bold; }
+    .point-controls input { max-width: 100%; }
+    .house-point { fill: #f4b537; stroke: #704b11; stroke-width: 1.5; cursor: pointer; }
+    .house-point:hover, .house-point:focus { fill: #fff4b8; stroke: #19352f; stroke-width: 3; outline: none; }
+    #pointDetails { background: #fffaf0; border: 1px solid #ead9b3; border-radius: 7px; padding: 12px; }
+    #pointDetails p { margin: 5px 0; }
 </style>
   <style>
     body {
@@ -190,19 +198,28 @@
 
   <section class="map-panel" aria-labelledby="mapTitle">
     <div class="map-top"><h2 id="mapTitle">세종시 빈집 조사 분포</h2><button type="button" id="mapReset">세종 전체 보기</button></div>
+    <div class="point-controls">
+      <label for="coordinateFile">빈집 좌표 파일 선택</label>
+      <input id="coordinateFile" type="file" accept=".csv,.xlsx,.xls">
+      <p class="map-note" style="margin:8px 0">주소 좌표 변환 시험 페이지의 ‘결과 CSV 저장’ 파일을 선택하세요. 이 파일은 브라우저에서만 읽으며 API를 다시 호출하지 않습니다.</p>
+      <a href="./geocode-test.html" target="_blank" rel="noopener">주소 좌표 변환 시험 페이지 열기</a>
+    </div>
     <div class="map-stage">
       <svg id="sejongMap" viewBox="0 0 600 660" role="group" aria-label="세종시 행정구역별 빈집 조사 분포"></svg>
       <span class="map-north">N<br>↑</span>
     </div>
     <div class="map-legend" aria-label="지역별 조사 기록 수 범례">
       <span><i style="background:#e0e4dc"></i>자료 없음 / 선택 제외</span>
+      <span><i style="background:#f4b537;border-radius:50%"></i>주소 검색 좌표</span>
       <span><i style="background:#d7e8c6"></i>1~29건</span>
       <span><i style="background:#a8cb9c"></i>30~59건</span>
       <span><i style="background:#70a67a"></i>60~89건</span>
       <span><i style="background:#347454"></i>90건 이상</span>
     </div>
     <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
-    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 자료가 없거나 현재 선택하지 않은 지역입니다. 개별 빈집 위치가 아닌 지역별 조사 기록 수입니다.</p>
+    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 자료가 없거나 현재 선택하지 않은 지역입니다. 면의 색은 지역별 조사 건수이며, 노란 점은 별도로 불러온 주소 검색 좌표입니다.</p>
+    <p id="pointStatus" class="map-note" role="status">좌표 CSV를 선택하면 점이 나타납니다.</p>
+    <div id="pointDetails" class="map-note" role="status">노란 점을 누르면 주소와 상세정보가 나타납니다.</div>
     <details class="map-note"><summary>지도 출처와 기준</summary>
       <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
     </details>
@@ -516,7 +533,9 @@ function initializeMap() {
   svg.replaceChildren();
   const paths = document.createElementNS(svgNS, 'g');
   const labels = document.createElementNS(svgNS, 'g');
-  svg.append(paths, labels);
+  pointLayer = document.createElementNS(svgNS, 'g');
+  pointLayer.setAttribute('aria-label', '빈집 주소 검색 좌표');
+  svg.append(paths, labels, pointLayer);
   mapShapes = SEJONG_MAP.regions.map(region => {
     const path = document.createElementNS(svgNS, 'path');
     path.setAttribute('d', region.path);
@@ -564,15 +583,8 @@ function updateMap() {
     const n = allCounts.get(region.name) || 0;
     const color = !n ? '#e0e4dc' : n < 30 ? '#d7e8c6' :
       n < 60 ? '#a8cb9c' : n < 90 ? '#70a67a' : '#347454';
-    path.setAttribute('fill', color);
-    // 선택한 지역이 있으면, 다른 지역은 회색으로 표시합니다.
-const isOtherRegion =
-  selectedRegion !== '' && region.name !== selectedRegion;
-
-path.setAttribute(
-  'fill',
-  isOtherRegion ? '#e0e4dc' : color
-);
+    const isOtherRegion = selectedRegion !== '' && region.name !== selectedRegion;
+    path.setAttribute('fill', isOtherRegion ? '#e0e4dc' : color);
     path.setAttribute('aria-pressed', String(selectedRegion === region.name));
     path.setAttribute('aria-disabled', String(!n));
     path.setAttribute('tabindex', n ? '0' : '-1');
@@ -590,10 +602,122 @@ path.setAttribute(
     ? (selectedRegion || '세종 전체') + ' 조회 중 · 선택한 지역만 색으로 표시하며, 색의 진하기는 파일 전체의 지역별 건수 기준입니다.' +
       (unmapped ? ' 지도와 연결되지 않은 ' + unmapped + '건은 표에서 확인하세요.' : '')
     : '엑셀을 선택하면 지역별 색과 건수가 표시됩니다.';
+  renderPoints();
 }
 
 document.getElementById('mapReset').addEventListener('click', function () {
   if (allTotal) selectMapRegion('');
+});
+
+
+const MAP_PROJECTION = {"centerX": 127.26846706447992, "centerY": 36.57026017312206, "cos": 0.8031268422595672, "scale": 1834.8419546529756, "minX": 127.12765872447403, "maxX": 127.4092754044858, "minY": 36.40675835257603, "maxY": 36.73376199366809};
+// 좌표 CSV는 브라우저에서 읽습니다. 이 단계에서는 주소 API를 호출하지 않습니다.
+let coordinateRecords = [];
+let coordinateRejected = 0;
+let coordinateLoaded = false;
+let pointLayer = null;
+const normalizeAddress = value => String(value ?? '').trim().replace(/\s+/g, ' ');
+
+function projectCoordinate(longitude, latitude) {
+  return [300 + (longitude - MAP_PROJECTION.centerX) * MAP_PROJECTION.cos * MAP_PROJECTION.scale,
+          330 - (latitude - MAP_PROJECTION.centerY) * MAP_PROJECTION.scale];
+}
+
+function showPointDetails(point) {
+  const box = document.getElementById('pointDetails');
+  box.replaceChildren();
+  const heading = document.createElement('strong');
+  heading.textContent = point.address;
+  const info = document.createElement('p');
+  info.textContent = '경도 ' + point.longitude + ' · 위도 ' + point.latitude +
+    ' · 주소 검색 결과이며 실제 건물 위치와 대조가 필요합니다.';
+  box.append(heading, info);
+  const matches = allRecords.filter(r => normalizeAddress(r.address) === normalizeAddress(point.address));
+  for (const record of matches) {
+    const detail = document.createElement('p');
+    detail.textContent = '주택유형: ' + (record.type || '미기재') + ' / 등급: ' + (record.grade || '미기재');
+    box.append(detail);
+  }
+  if (!matches.length) {
+    const note = document.createElement('p');
+    note.textContent = '현재 조사 엑셀에서 같은 주소를 찾지 못했습니다.';
+    box.append(note);
+  }
+}
+
+function renderPoints() {
+  const status = document.getElementById('pointStatus');
+  if (!pointLayer) {
+    if (coordinateLoaded) status.textContent = '좌표는 읽었습니다. 지도 경계 파일이 준비되면 점을 표시합니다.';
+    return;
+  }
+  pointLayer.replaceChildren();
+  document.getElementById('pointDetails').textContent = '노란 점을 누르면 주소와 상세정보가 나타납니다.';
+  const shown = coordinateRecords.filter(p => !selectedRegion || p.region === selectedRegion);
+  for (const point of shown) {
+    const marker = document.createElementNS(svgNS, 'circle');
+    const [x, y] = projectCoordinate(point.longitude, point.latitude);
+    marker.setAttribute('cx', x);
+    marker.setAttribute('cy', y);
+    marker.setAttribute('r', '5.5');
+    marker.setAttribute('class', 'house-point');
+    marker.setAttribute('tabindex', '0');
+    marker.setAttribute('role', 'button');
+    marker.setAttribute('aria-label', point.address + ' 위치 확인');
+    const title = document.createElementNS(svgNS, 'title');
+    title.textContent = point.address;
+    marker.append(title);
+    marker.addEventListener('click', () => showPointDetails(point));
+    marker.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();showPointDetails(point);
+      }
+    });
+    pointLayer.append(marker);
+  }
+  status.textContent = coordinateLoaded
+    ? '현재 지역의 좌표 기록 ' + shown.length + '건 표시 / 읽은 유효 좌표 ' + coordinateRecords.length +
+      '건' + (coordinateRejected ? ' · 좌표 누락·오류·세종 범위 밖 ' + coordinateRejected + '건 제외' : '') +
+      '. 전체 조사 건수와 좌표를 준비한 건수는 다릅니다. 같은 좌표의 점은 겹칠 수 있습니다.'
+    : '시험 페이지에서 저장한 CSV를 선택하면 좌표가 있는 기록만 점으로 나타납니다.';
+}
+
+document.getElementById('coordinateFile').addEventListener('change', async function () {
+  const file = this.files[0];
+  coordinateRecords = [];coordinateRejected = 0;coordinateLoaded = false;
+  renderPoints();
+  if (!file) return;
+  this.disabled = true;
+  try {
+    if (typeof XLSX === 'undefined') throw new Error('엑셀 읽기 도구 준비 후 다시 선택해 주세요.');
+    const book = /\.csv$/i.test(file.name)
+      ? XLSX.read(await file.text(), {type:'string'})
+      : XLSX.read(await file.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], {header:1,defval:'',raw:false});
+    const headerIndex = rows.findIndex(row => ['소재지','경도','위도'].every(name =>
+      row.some(value => String(value).trim() === name)));
+    if (headerIndex < 0) throw new Error("'소재지', '경도', '위도' 열이 필요합니다. 시험 페이지에서 저장한 CSV를 선택하세요.");
+    const headers = rows[headerIndex].map(v => String(v).trim());
+    const a = headers.indexOf('소재지'), x = headers.indexOf('경도'), y = headers.indexOf('위도');
+    for (const row of rows.slice(headerIndex+1)) {
+      if (!row.some(v => String(v ?? '').trim())) continue;
+      const address = normalizeAddress(row[a]);
+      const lonText = String(row[x] ?? '').trim(), latText = String(row[y] ?? '').trim();
+      const longitude = Number(lonText), latitude = Number(latText);
+      if (!address || !lonText || !latText || !Number.isFinite(longitude) || !Number.isFinite(latitude) ||
+          longitude < MAP_PROJECTION.minX || longitude > MAP_PROJECTION.maxX ||
+          latitude < MAP_PROJECTION.minY || latitude > MAP_PROJECTION.maxY) {
+        coordinateRejected++;continue;
+      }
+      const match = address.match(/세종특별자치시\s+([가-힣]+(?:읍|면|동))(?=\s|$)/);
+      coordinateRecords.push({address,longitude,latitude,region:match ? match[1] : unknownRegion});
+    }
+    coordinateLoaded = true;
+    renderPoints();
+  } catch (error) {
+    coordinateRecords = [];coordinateLoaded = false;renderPoints();
+    document.getElementById('pointStatus').textContent = '좌표 읽기 실패: ' + error.message;
+  } finally { this.disabled = false; }
 });
 
   </script>

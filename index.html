@@ -57,6 +57,12 @@
     .map-north { pointer-events: none; }
     .map-navigation { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 20px; }
     .map-navigation button { padding:7px 12px; border:1px solid #b8cbb9; border-radius:6px; background:white; color:#21664f; cursor:pointer; }
+  
+    .house-details h4 { margin:14px 0 8px; font-size:14px; overflow-wrap:anywhere; }
+    .house-details section { border-bottom:1px solid #dfe7e1; padding-bottom:10px; }
+    .house-details dl { display:grid; grid-template-columns:110px 1fr; gap:5px 10px; margin:8px 0; }
+    .house-details dt { color:#526b5a; }
+    .house-details dd { margin:0; overflow-wrap:anywhere; }
   </style>
   <style>
     body {
@@ -502,6 +508,12 @@ fileInput.addEventListener('change', async function () {
       String(value).trim() === '등급'
     );
 
+    const detailColumns = {
+      surveyYear:['조사년도','조사연도'], approvalDate:['사용승인일자','사용승인연도','사용승인년도'],
+      buildingArea:['건축면적','건축면적(㎡)'], totalArea:['연면적','연면적(㎡)']
+    };
+    const detailIndexes=Object.fromEntries(Object.entries(detailColumns).map(([key,names])=>
+      [key,rows[headerIndex].findIndex(v=>names.includes(String(v).replace(/\s/g,'')))]));
     for (const row of rows.slice(headerIndex + 1)) {
       const address = String(row[addressIndex] ?? '').trim();
       if (!address) continue;
@@ -517,7 +529,9 @@ fileInput.addEventListener('change', async function () {
         region: region,
         address: address,
         type: typeIndex >= 0 ? String(row[typeIndex] ?? '').trim() : '',
-        grade: gradeIndex >= 0 ? String(row[gradeIndex] ?? '').trim() : ''
+        grade: gradeIndex >= 0 ? String(row[gradeIndex] ?? '').trim() : '',
+        detailVersion:1,
+        ...Object.fromEntries(Object.entries(detailIndexes).map(([key,index])=>[key,index>=0?String(row[index]??'').trim():'']))
       });
     }
 
@@ -661,26 +675,28 @@ function projectCoordinate(longitude, latitude) {
           330 - (latitude - MAP_PROJECTION.centerY) * MAP_PROJECTION.scale];
 }
 
-function showPointDetails(point) {
-  const box = document.getElementById('pointDetails');
-  box.replaceChildren();
-  const heading = document.createElement('strong');
-  heading.textContent = point.address;
-  const info = document.createElement('p');
-  info.textContent = '경도 ' + point.longitude + ' · 위도 ' + point.latitude +
-    ' · 주소 검색 결과이며 실제 건물 위치와 대조가 필요합니다.';
-  box.append(heading, info);
-  const matches = allRecords.filter(r => normalizeAddress(r.address) === normalizeAddress(point.address));
-  for (const record of matches) {
-    const detail = document.createElement('p');
-    detail.textContent = '주택유형: ' + (record.type || '미기재') + ' / 등급: ' + (record.grade || '미기재');
-    box.append(detail);
-  }
-  if (!matches.length) {
-    const note = document.createElement('p');
-    note.textContent = '현재 조사 엑셀에서 같은 주소를 찾지 못했습니다.';
-    box.append(note);
-  }
+function createHouseDetails(points) {
+  const box=document.createElement('div');box.className='house-details';
+  const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
+  const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address)));
+  const heading=document.createElement('strong');heading.textContent='빈집 조사 상세 · '+matches.length+'건';box.append(heading);
+  const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
+  const area=value=>{const text=display(value);return text==='미기재'?text:text+' ㎡';};
+  matches.forEach((record,index)=>{
+    const section=document.createElement('section');
+    const title=document.createElement('h4');title.textContent='조사 기록 '+(index+1)+' · '+record.address;section.append(title);
+    const fields=[['주택유형',display(record.type)],['빈집 등급',display(record.grade)],['조사연도',display(record.surveyYear)],['사용승인일자·연도',display(record.approvalDate)],['건축면적',area(record.buildingArea)],['연면적',area(record.totalArea)]];
+    const dl=document.createElement('dl');
+    for(const [label,value]of fields){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;dl.append(dt,dd);}
+    section.append(dl);box.append(section);
+  });
+  if(!matches.length){const p=document.createElement('p');p.textContent='현재 조사자료에서 일치하는 주소를 찾지 못했습니다: '+[...addresses].join(', ');box.append(p);}
+  if(matches.some(r=>r.detailVersion!==1)){const p=document.createElement('p');p.textContent='이전 저장자료입니다. 조사 엑셀을 한 번 다시 선택하면 연도와 면적도 불러옵니다.';box.append(p);}
+  const note=document.createElement('p');note.textContent='좌표: '+points[0].longitude+', '+points[0].latitude+' · 주소 검색 위치이므로 실제 건물과 대조해 주세요.';box.append(note);
+  return box;
+}
+function showPointDetails(points) {
+  document.getElementById('pointDetails').replaceChildren(createHouseDetails(points));
 }
 
 function renderPoints() {
@@ -694,11 +710,8 @@ function renderPoints() {
     const first=points[0];
     const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
     const tip=document.createElement('span');tip.textContent=first.address+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
-    const popup=document.createElement('div');
-    const title=document.createElement('strong');title.textContent=points.length>1?'같은 좌표의 조사 기록 '+points.length+'건':first.address;popup.append(title);
-    for(const address of new Set(points.map(p=>p.address))){const line=document.createElement('p');line.textContent=address;popup.append(line);}
-    const note=document.createElement('p');note.textContent='주소 검색으로 얻은 좌표입니다. 실제 건물 위치와 대조해 주세요.';popup.append(note);
-    marker.bindPopup(popup).on('click',()=>showPointDetails(first));marker.addTo(pointLayer);
+    marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360})
+      .on('click',()=>showPointDetails(points));marker.addTo(pointLayer);
   }
   status.textContent=coordinateLoaded?'선택 지역 좌표 기록 '+shown.length+'건 · 서로 다른 위치 '+groups.size+'곳 · 점은 확대해도 반지름 4px로 유지됩니다.'+(coordinateRejected?' 제외 기록 '+coordinateRejected+'건.':''):'좌표를 불러오면 빈집 위치에 점이 나타납니다.';
 }

@@ -195,14 +195,14 @@
       <span class="map-north">N<br>↑</span>
     </div>
     <div class="map-legend" aria-label="지역별 조사 기록 수 범례">
-      <span><i style="background:#e0e4dc"></i>자료 없음</span>
+      <span><i style="background:#e0e4dc"></i>자료 없음 / 선택 제외</span>
       <span><i style="background:#d7e8c6"></i>1~29건</span>
       <span><i style="background:#a8cb9c"></i>30~59건</span>
       <span><i style="background:#70a67a"></i>60~89건</span>
       <span><i style="background:#347454"></i>90건 이상</span>
     </div>
     <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
-    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 선택한 엑셀에 기록이 없는 지역입니다. 개별 빈집 위치가 아닌 지역별 조사 기록 수입니다.</p>
+    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 자료가 없거나 현재 선택하지 않은 지역입니다. 개별 빈집 위치가 아닌 지역별 조사 기록 수입니다.</p>
     <details class="map-note"><summary>지도 출처와 기준</summary>
       <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
     </details>
@@ -565,6 +565,14 @@ function updateMap() {
     const color = !n ? '#e0e4dc' : n < 30 ? '#d7e8c6' :
       n < 60 ? '#a8cb9c' : n < 90 ? '#70a67a' : '#347454';
     path.setAttribute('fill', color);
+    // 선택한 지역이 있으면, 다른 지역은 회색으로 표시합니다.
+const isOtherRegion =
+  selectedRegion !== '' && region.name !== selectedRegion;
+
+path.setAttribute(
+  'fill',
+  isOtherRegion ? '#e0e4dc' : color
+);
     path.setAttribute('aria-pressed', String(selectedRegion === region.name));
     path.setAttribute('aria-disabled', String(!n));
     path.setAttribute('tabindex', n ? '0' : '-1');
@@ -579,7 +587,7 @@ function updateMap() {
   const unmapped = [...allCounts].reduce((sum, [name, n]) =>
     sum + (names.has(name) ? 0 : n), 0);
   document.getElementById('mapStatus').textContent = allTotal
-    ? (selectedRegion || '세종 전체') + ' 조회 중 · 지도 색은 파일 전체의 지역별 건수 기준입니다.' +
+    ? (selectedRegion || '세종 전체') + ' 조회 중 · 선택한 지역만 색으로 표시하며, 색의 진하기는 파일 전체의 지역별 건수 기준입니다.' +
       (unmapped ? ' 지도와 연결되지 않은 ' + unmapped + '건은 표에서 확인하세요.' : '')
     : '엑셀을 선택하면 지역별 색과 건수가 표시됩니다.';
 }

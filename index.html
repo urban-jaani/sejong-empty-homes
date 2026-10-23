@@ -1,4 +1,4 @@
-본인 컴퓨터에서 파일을 기억하도록 만들<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -51,7 +51,13 @@
     .house-point:hover, .house-point:focus { fill: #fff4b8; stroke: #19352f; stroke-width: 3; outline: none; }
     #pointDetails { background: #fffaf0; border: 1px solid #ead9b3; border-radius: 7px; padding: 12px; }
     #pointDetails p { margin: 5px 0; }
-</style>
+
+    #sejongMap { touch-action: none; user-select: none; cursor: grab; }
+    #sejongMap.dragging, #sejongMap.dragging * { cursor: grabbing !important; }
+    .map-north { pointer-events: none; }
+    .map-navigation { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 20px; }
+    .map-navigation button { padding:7px 12px; border:1px solid #b8cbb9; border-radius:6px; background:white; color:#21664f; cursor:pointer; }
+  </style>
   <style>
     body {
       font-family: "Malgun Gothic", sans-serif;
@@ -208,6 +214,13 @@
       <input id="coordinateFile" type="file" accept=".csv,.xlsx,.xls">
       <p class="map-note" style="margin:8px 0">주소 좌표 변환 시험 페이지의 ‘결과 CSV 저장’ 파일을 선택하세요. 이 파일은 브라우저에서만 읽으며 API를 다시 호출하지 않습니다.</p>
       <a href="./geocode-test.html" target="_blank" rel="noopener">주소 좌표 변환 시험 페이지 열기</a>
+    </div>
+    <div class="map-navigation" role="group" aria-label="지도 확대 축소">
+      <button id="mapZoomIn" type="button" aria-label="지도 확대">＋</button>
+      <button id="mapZoomOut" type="button" aria-label="지도 축소">−</button>
+      <button id="mapViewReset" type="button">처음 크기</button>
+      <span id="mapZoomLevel">100%</span>
+      <span>휠로 확대·축소 · 드래그로 이동</span>
     </div>
     <div class="map-stage">
       <svg id="sejongMap" viewBox="0 0 600 660" role="group" aria-label="세종시 행정구역별 빈집 조사 분포"></svg>
@@ -855,5 +868,71 @@ updateStorageStatus(restoreErrors.length
     onload="initializeMap()"
     onerror="document.getElementById('mapStatus').textContent = '지도 파일을 찾지 못했습니다. sejong-map.js를 index.html과 같은 폴더에 올렸는지 확인해 주세요.';"
   ></script>
+<script>
+// 지도 좌표계를 바꿔 경계·이름·빈집 점을 함께 확대합니다.
+(() => {
+  const svg = document.getElementById('sejongMap');
+  let view = {x:0,y:0,w:600,h:660};
+  let drag = null, suppressClickUntil = 0;
+  function draw() {
+    view.x = Math.max(0, Math.min(600-view.w, view.x));
+    view.y = Math.max(0, Math.min(660-view.h, view.y));
+    svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    document.getElementById('mapZoomLevel').textContent = Math.round(600/view.w*100)+'%';
+  }
+  function point(event) {
+    const matrix = svg.getScreenCTM();
+    if (!matrix) return null;
+    const p = svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY;
+    return p.matrixTransform(matrix.inverse());
+  }
+  function zoom(factor, anchor={x:view.x+view.w/2,y:view.y+view.h/2}) {
+    const width=Math.max(50,Math.min(600,view.w*factor));
+    const ratio=width/view.w;
+    view={x:anchor.x-(anchor.x-view.x)*ratio,y:anchor.y-(anchor.y-view.y)*ratio,w:width,h:width*1.1};
+    draw();
+  }
+  svg.addEventListener('wheel', event => {
+    event.preventDefault();
+    if(drag)return;
+    const anchor=point(event);if(!anchor)return;
+    const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?660:1);
+    zoom(Math.exp(Math.max(-150,Math.min(150,delta))*0.002),anchor);
+  }, {passive:false});
+  svg.addEventListener('pointerdown',event=>{
+    if(event.button!==0||drag)return;
+    suppressClickUntil=0;
+    const p=point(event);if(!p)return;
+    drag={id:event.pointerId,p,startX:event.clientX,startY:event.clientY,moved:false};
+  });
+  svg.addEventListener('pointermove',event=>{
+    if(!drag||drag.id!==event.pointerId)return;
+    if(!drag.moved && Math.hypot(event.clientX-drag.startX,event.clientY-drag.startY)<5)return;
+    const p=point(event);if(!p)return;
+    if(!drag.moved){drag.moved=true;svg.setPointerCapture(event.pointerId);svg.classList.add('dragging');}
+    view.x+=drag.p.x-p.x;view.y+=drag.p.y-p.y;draw();
+    drag.p=point(event);
+  });
+  function finish(event){
+    if(!drag||drag.id!==event.pointerId)return;
+    if(drag.moved)suppressClickUntil=Date.now()+400;
+    drag=null;svg.classList.remove('dragging');
+    if(svg.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);
+  }
+  window.addEventListener('pointerup',finish);
+  window.addEventListener('pointercancel',finish);
+  svg.addEventListener('lostpointercapture',finish);
+  svg.addEventListener('click',event=>{
+    if(event.detail!==0 && Date.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();}
+  },true);
+  document.getElementById('mapZoomIn').addEventListener('click',()=>zoom(1/1.3));
+  document.getElementById('mapZoomOut').addEventListener('click',()=>zoom(1.3));
+  function reset(){view={x:0,y:0,w:600,h:660};draw();}
+  document.getElementById('mapViewReset').addEventListener('click',reset);
+  document.getElementById('mapReset').addEventListener('click',reset);
+  draw();
+})();
+
+</script>
 </body>
 </html>

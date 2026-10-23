@@ -174,13 +174,70 @@
     }
   </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-</head>
+<style>
+body { max-width:1800px; padding:22px; background:#f4f5f1; }
+body>h1 { margin:0; font-size:27px; }
+body>p:first-of-type { margin:6px 0 20px; font-size:14px; color:#607168; }
+.dashboard-grid { display:grid; grid-template-columns:210px minmax(360px,1fr) 390px; gap:16px; align-items:start; }
+.dashboard-left,.dashboard-right { background:#fff; border:1px solid #d5dfd2; border-radius:10px; padding:16px; min-width:0; }
+.dashboard-left { position:sticky; top:16px; max-height:calc(100vh - 32px); overflow:auto; }
+.dashboard-left h2,.dashboard-right h2 { font-size:18px; margin:0 0 14px; padding-bottom:10px; }
+.dashboard-left h3 { font-size:14px; margin:22px 0 8px; }
+.category-buttons { display:grid; gap:5px; margin-bottom:24px; }
+.category-buttons button { text-align:left; padding:11px 12px; border:1px solid transparent; border-radius:6px; background:#f5f7f3; color:#19352f; font:inherit; font-size:14px; cursor:pointer; }
+.category-buttons button[aria-pressed=true] { background:#21664f; color:#fff; font-weight:bold; }
+.category-buttons button:focus-visible { outline:3px solid #e1aa45; }
+.dashboard-left .region-buttons { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.dashboard-left .region-button { padding:8px 3px; font-size:12px; }
+.dashboard-left #regionButtons button:first-child { grid-column:1/-1; }
+.dashboard-left #regionLabel { font-size:14px; font-weight:bold; }
+.dashboard-left details { margin-top:16px; border-top:1px solid #dfe7e1; padding-top:12px; font-size:12px; }
+summary { cursor:pointer; font-weight:bold; }
+.dashboard-left input:not([type=checkbox]):not([type=range]) { width:100%; box-sizing:border-box; }
+.dashboard-left .point-controls { padding:8px 0; background:transparent; }
+.dashboard-left .map-note { margin:8px 0; font-size:11px; }
+.dashboard-left button { max-width:100%; }
+.dashboard-left #clearSavedData { font-size:11px; }
+.dashboard-center { min-width:0; }
+.dashboard-center .map-panel { margin:0; border-radius:10px; }
+.dashboard-center .map-top { padding:14px; }
+.dashboard-center .map-top h2 { font-size:18px; }
+#sejongMap { height:clamp(480px,70vh,850px); }
+.map-navigation { padding:8px 12px; font-size:12px; }
+.map-legend { gap:8px; padding:10px 12px; font-size:11px; }
+.dashboard-right { max-height:calc(100vh - 40px); overflow:auto; position:sticky; top:16px; }
+.dashboard-right h3 { font-size:15px; margin:20px 0 10px; }
+.dashboard-right p { font-size:12px; line-height:1.6; }
+.dashboard-right table { font-size:12px; }
+.dashboard-right th,.dashboard-right td { padding:9px 6px; }
+.dashboard-right .cards { gap:8px; margin:12px 0; }
+.dashboard-right .card { min-width:0; padding:12px; border-radius:7px; }
+.dashboard-right .card span { font-size:11px; }
+.dashboard-right .card strong { font-size:26px; }
+.dashboard-right .stats-grid { display:block; }
+.dashboard-right #pointDetails { margin:0; font-size:12px; }
+.dashboard-right #selectionMessage { color:#607168; }
+.stats-note { font-size:11px!important; }
+.list-panel { margin-top:24px; padding:20px; border:1px solid #d5dfd2; background:white; border-radius:10px; }
+.list-panel h2 { margin-top:0; font-size:20px; }
+[hidden] { display:none!important; }
+@media(max-width:1150px) { .dashboard-grid { grid-template-columns:180px minmax(300px,1fr); } .dashboard-right { grid-column:1/-1; position:static; max-height:none; } .dashboard-right .stats-grid { display:grid; } }
+@media(max-width:700px) { body{padding:12px;} .dashboard-grid { grid-template-columns:1fr; } .dashboard-left{position:static;max-height:none;} .category-buttons{grid-template-columns:1fr 1fr;margin-bottom:16px;} .dashboard-left .region-buttons{grid-template-columns:repeat(3,1fr);} .dashboard-right{grid-column:auto;} #sejongMap{height:480px;} .dashboard-right .stats-grid{display:block;} }
+
+</style></head>
 
 <body>
   <h1>세종시 빈집 현황판</h1>
   <p>세종시 빈집은 어디에 많을까?</p>
 
-  <h2>조사 현황</h2>
+<main class="dashboard-grid">
+<aside class="dashboard-left" aria-label="카테고리와 지역 선택"><h2>빈집 현황 보기</h2><nav class="category-buttons" aria-label="통계 카테고리"><button type="button" data-category="all" aria-pressed="false">전체 요약</button><button type="button" data-category="grade" aria-pressed="false">등급 현황</button><button type="button" data-category="approval" aria-pressed="false">사용승인 현황</button><button type="button" data-category="area" aria-pressed="false">면적 기초통계</button><button type="button" data-category="point" aria-pressed="false">선택한 빈집 상세</button></nav>
+  <span id="regionLabel">조회 지역</span>
+  <div id="regionButtons" class="region-buttons"
+       role="group" aria-labelledby="regionLabel">
+    <button type="button" class="region-button" aria-pressed="true" disabled>세종 전체</button>
+  </div>
+<details><summary>조사자료 설정</summary>
 
   <label for="excelFile">빈집 조사 엑셀 선택</label>
   <input
@@ -199,29 +256,7 @@
     <button id="clearSavedData" type="button" class="region-button">이 브라우저의 저장된 자료 지우기</button>
     <p style="font-size:12px; margin-bottom:0;">같은 브라우저에서 다시 열면 자동 복원됩니다. 새 파일을 선택하면 교체됩니다. 원본 파일의 수정 내용은 새 파일을 선택해야 반영됩니다.</p>
   </div>
-  <span id="regionLabel">조회 지역</span>
-  <div id="regionButtons" class="region-buttons"
-       role="group" aria-labelledby="regionLabel">
-    <button type="button" class="region-button" aria-pressed="true" disabled>세종 전체</button>
-  </div>
-  <p id="selectionMessage" role="status">엑셀을 선택한 뒤 지역을 고를 수 있습니다.</p>
-
-  <div class="cards">
-    <div class="card">
-      <span>선택 지역의 조사 기록 수</span>
-      <strong id="totalCount">—</strong>
-    </div>
-
-    <div class="card">
-      <span>조회 중인 지역 수</span>
-      <strong id="regionCount">—</strong>
-    </div>
-  </div>
-
-
-  <section class="map-panel" aria-labelledby="mapTitle">
-    <div class="map-top"><h2 id="mapTitle">세종시 빈집 조사 분포</h2><button type="button" id="mapReset">세종 전체 보기</button></div>
-    <div class="point-controls">
+</details><details><summary>좌표·배경지도 설정</summary>    <div class="point-controls">
       <label for="coordinateFile">빈집 좌표 파일 선택</label>
       <input id="coordinateFile" type="file" accept=".csv,.xlsx,.xls">
       <p class="map-note" style="margin:8px 0">주소 좌표 변환 시험 페이지의 ‘결과 CSV 저장’ 파일을 선택하세요. 좌표 파일은 브라우저에서 읽으며 주소 검색 API를 다시 호출하지 않습니다.</p>
@@ -237,6 +272,9 @@
       <p id="baseStatus" class="map-note" role="status">인증키를 입력하면 배경지도를 불러옵니다. 기억하기를 체크하면 이 브라우저에 저장합니다.</p>
       <label for="boundaryOpacity">지역 색 진하기</label><input id="boundaryOpacity" type="range" min="0" max="60" value="20">
     </div>
+</details></aside>
+<div class="dashboard-center">  <section class="map-panel" aria-labelledby="mapTitle">
+    <div class="map-top"><h2 id="mapTitle">세종시 빈집 조사 분포</h2><button type="button" id="mapReset">세종 전체 보기</button></div>
     <div class="map-navigation" role="group" aria-label="지도 확대 축소">
       <button id="mapZoomIn" type="button" aria-label="지도 확대">＋</button>
       <button id="mapZoomOut" type="button" aria-label="지도 축소">−</button>
@@ -259,13 +297,29 @@
     <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
     <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 자료가 없거나 현재 선택하지 않은 지역입니다. 면의 색은 지역별 조사 건수이며, 노란 점은 별도로 불러온 주소 검색 좌표입니다.</p>
     <p id="pointStatus" class="map-note" role="status">좌표 CSV를 선택하면 점이 나타납니다.</p>
-    <div id="pointDetails" class="map-note" role="status">노란 점을 누르면 주소와 상세정보가 나타납니다.</div>
     <details class="map-note"><summary>지도 출처와 기준</summary>
       <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
     </details>
   </section>
 
-  <h2>지역별 조사 현황</h2>
+</div>
+<aside class="dashboard-right" aria-label="선택 지역 통계"><h2 id="rightCategoryTitle">전체 요약</h2>  <p id="selectionMessage" role="status">엑셀을 선택한 뒤 지역을 고를 수 있습니다.</p>
+
+  <div class="cards">
+    <div class="card">
+      <span>선택 지역의 조사 기록 수</span>
+      <strong id="totalCount">—</strong>
+    </div>
+
+    <div class="card">
+      <span>조회 중인 지역 수</span>
+      <strong id="regionCount">—</strong>
+    </div>
+  </div>
+
+
+
+<section id="regionSummaryPanel">  <h2>지역별 조사 현황</h2>
   <p>
     첫 번째 시트의 소재지가 있는 행을 한 건으로 셉니다.
     동일 주소의 반복 기록도 포함합니다.
@@ -289,19 +343,22 @@
 </tfoot>
   </table>
 
-  <section aria-labelledby="basicStatsTitle">
+</section>  <section id="basicStatsPanel" aria-labelledby="basicStatsTitle">
     <h2 id="basicStatsTitle">빈집 기초통계</h2>
     <p id="statsScope" role="status">조사자료를 선택하세요.</p>
     <p id="statsReload" role="status"></p>
     <div class="stats-grid">
-      <div><h3>등급 현황</h3><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></div>
-      <div><h3>사용승인연도 분포</h3><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></div>
+      <div id="gradePanel"><h3>등급 현황</h3><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></div>
+      <div id="approvalPanel"><h3>사용승인연도 분포</h3><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></div>
     </div>
-    <h3>면적 평균</h3>
+    <div id="areaPanel"><h3>면적 평균</h3>
     <div style="overflow-x:auto"><table><thead><tr><th>항목</th><th>평균 면적</th><th>평균 산정 기록</th><th>0㎡ 제외</th><th>미기재·오류 제외</th></tr></thead><tbody id="areaStats"></tbody></table></div>
-    <p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역의 전체 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
+    </div><p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역의 전체 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
   </section>
-  <h2>빈집 조사 상세 목록</h2>
+<section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">노란 점을 누르면 주소와 상세정보가 나타납니다.</div>
+</section></aside>
+</main>
+<section class="list-panel"><h2>빈집 조사 상세 목록</h2>
   <p id="detailMessage" role="status">엑셀을 선택하면 상세 목록이 나타납니다.</p>
 
   <div style="max-height: 400px; overflow: auto;" tabindex="0"
@@ -324,6 +381,7 @@
     다른 방문자에게 공유되지 않습니다. 브라우저의 사이트 데이터를 삭제하거나 다른 브라우저를 사용하면 다시 선택해야 합니다.
   </p>
 
+</section>
   <!-- 엑셀 읽기 도구: 준비가 끝나면 파일 선택을 허용합니다. -->
   <script
     defer
@@ -752,6 +810,7 @@ function createHouseDetails(points) {
 }
 function showPointDetails(points) {
   document.getElementById('pointDetails').replaceChildren(createHouseDetails(points));
+  selectCategory('point');
 }
 
 function renderPoints() {
@@ -941,4 +1000,22 @@ updateStorageStatus(restoreErrors.length
 
   </script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onload="initializeMap()" onerror="document.getElementById('mapStatus').textContent='지도 도구에 연결하지 못했습니다. 인터넷 연결을 확인하고 새로고침하세요.';"></script>
-</body></html>
+<script>
+let activeCategory='all';
+function selectCategory(category){
+  activeCategory=category;
+  for(const button of document.querySelectorAll('[data-category]'))button.setAttribute('aria-pressed',String(button.dataset.category===category));
+  const show=(id,visible)=>document.getElementById(id).hidden=!visible;
+  show('regionSummaryPanel',category==='all');
+  show('basicStatsPanel',category!=='point');
+  show('gradePanel',category==='all'||category==='grade');
+  show('approvalPanel',category==='all'||category==='approval');
+  show('areaPanel',category==='all'||category==='area');
+  show('pointPanel',category==='all'||category==='point');
+  document.getElementById('rightCategoryTitle').textContent={all:'전체 요약',grade:'등급 현황',approval:'사용승인 현황',area:'면적 기초통계',point:'선택한 빈집 상세'}[category];
+  document.querySelector('.dashboard-right').scrollTop=0;
+}
+for(const button of document.querySelectorAll('[data-category]'))button.addEventListener('click',()=>selectCategory(button.dataset.category));
+selectCategory('all');
+
+</script></body></html>

@@ -647,7 +647,7 @@ function renderPoints() {
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   for(const points of groups.values()){
     const first=points[0];
-    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:7,weight:2,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
+    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
     const tip=document.createElement('span');tip.textContent=first.address+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
     const popup=document.createElement('div');
     const title=document.createElement('strong');title.textContent=points.length>1?'같은 좌표의 조사 기록 '+points.length+'건':first.address;popup.append(title);

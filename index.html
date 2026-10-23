@@ -236,7 +236,24 @@ summary { cursor:pointer; font-weight:bold; }
   button, input, select, textarea { line-height:1.5; }
   .map-label { font-family:var(--dashboard-font); }
 </style>
-</head>
+<style>
+ .stat-chart { margin:12px 0 16px; }
+ .chart-caption { color:#69796f; font-size:11px!important; }
+ .stat-bar-row { margin:12px 0; }
+ .stat-bar-header { display:flex; justify-content:space-between; gap:10px; font-size:12px; margin-bottom:5px; }
+ .stat-bar-header strong { white-space:nowrap; font-size:11px; font-weight:600; }
+ .stat-bar-track { height:9px; background:#edf1ec; border-radius:4px; overflow:hidden; }
+ .stat-bar-fill { height:100%; background:#39836b; border-radius:4px; }
+ #approvalChart .stat-bar-fill { background:#64849b; }
+ .stat-bar-fill.unknown,#approvalChart .stat-bar-fill.unknown { background:#9b9e9a; }
+ .stat-table { border-top:1px solid #e1e7df; margin:12px 0 20px; padding-top:10px; }
+ .stat-table summary { font-size:12px; color:#526b5a; margin-bottom:10px; }
+ .area-stat-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+ .area-stat-card { padding:12px 8px; background:#f0f5ef; border-radius:8px; display:flex; flex-direction:column; gap:6px; }
+ .area-stat-card span { font-size:11px; color:#526b5a; }
+ .area-stat-card strong { font-size:15px; color:#21664f; overflow-wrap:anywhere; }
+ .area-stat-card small { font-size:10px; color:#69796f; }
+</style></head>
 
 <body>
   <h1>세종시 빈집 현황판</h1>
@@ -300,14 +317,18 @@ summary { cursor:pointer; font-weight:bold; }
     </div>
     <div class="map-legend" aria-label="지역별 조사 기록 수 범례">
       <span><i style="background:#e0e4dc"></i>자료 없음 / 선택 제외</span>
-      <span><i style="background:#f4b537;border-radius:50%"></i>주소 검색 좌표</span>
+      <span><i style="background:#16865b;border-radius:50%"></i>점: 1등급</span>
+      <span><i style="background:#eacb32;border-radius:50%"></i>점: 2등급</span>
+      <span><i style="background:#f28a2b;border-radius:50%"></i>점: 3등급</span>
+      <span><i style="background:#d84747;border-radius:50%"></i>점: 4등급</span>
+      <span><i style="background:#929b9f;border-radius:50%"></i>점: 신규·미기재·확인 필요</span>
       <span><i style="background:#d7e8c6"></i>1~29건</span>
       <span><i style="background:#a8cb9c"></i>30~59건</span>
       <span><i style="background:#70a67a"></i>60~89건</span>
       <span><i style="background:#347454"></i>90건 이상</span>
     </div>
     <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
-    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 자료가 없거나 현재 선택하지 않은 지역입니다. 면의 색은 지역별 조사 건수이며, 노란 점은 별도로 불러온 주소 검색 좌표입니다.</p>
+    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색 면은 자료가 없거나 선택에서 제외된 지역입니다. 면의 색은 조사 건수, 점의 색은 등급을 나타냅니다. 같은 위치에 여러 등급이 있으면 숫자가 가장 높은 등급 색으로 표시합니다. (구)등급도 같은 숫자의 색을 사용하며, 원본 표기는 상세창에서 확인할 수 있습니다.</p>
     <p id="pointStatus" class="map-note" role="status">좌표 CSV를 선택하면 점이 나타납니다.</p>
     <details class="map-note"><summary>지도 출처와 기준</summary>
       <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
@@ -360,14 +381,14 @@ summary { cursor:pointer; font-weight:bold; }
     <p id="statsScope" role="status">조사자료를 선택하세요.</p>
     <p id="statsReload" role="status"></p>
     <div class="stats-grid">
-      <div id="gradePanel"><h3>등급 현황</h3><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></div>
-      <div id="approvalPanel"><h3>사용승인연도 분포</h3><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></div>
+      <div id="gradePanel"><h3>등급 현황</h3><div id="gradeChart" class="stat-chart" aria-label="등급 현황 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>등급</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="gradeStats"></tbody></table></details></div>
+      <div id="approvalPanel"><h3>사용승인연도 분포</h3><div id="approvalChart" class="stat-chart" aria-label="사용승인연도 분포 그래프"></div><details class="stat-table"><summary>상세 수치 보기</summary><table><thead><tr><th>사용승인연도</th><th>조사 기록 수</th><th>선택 지역 내 비율</th></tr></thead><tbody id="approvalStats"></tbody></table></details></div>
     </div>
-    <div id="areaPanel"><h3>면적 평균</h3>
-    <div style="overflow-x:auto"><table><thead><tr><th>항목</th><th>평균 면적</th><th>평균 산정 기록</th><th>0㎡ 제외</th><th>미기재·오류 제외</th></tr></thead><tbody id="areaStats"></tbody></table></div>
+    <div id="areaPanel"><h3>면적 평균</h3><div id="areaCards" class="area-stat-cards"></div><details class="stat-table"><summary>상세 수치 보기 · 산정·제외 건수</summary>
+    <div style="overflow-x:auto"><table><thead><tr><th>항목</th><th>평균 면적</th><th>평균 산정 기록</th><th>0㎡ 제외</th><th>미기재·오류 제외</th></tr></thead><tbody id="areaStats"></tbody></table></div></details>
     </div><p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역의 전체 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
   </section>
-<section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">노란 점을 누르면 주소와 상세정보가 나타납니다.</div>
+<section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">빈집 점을 누르면 주소와 상세정보가 나타납니다.</div>
 </section></aside>
 </main>
 <section class="list-panel"><h2>빈집 조사 상세 목록</h2>
@@ -465,6 +486,35 @@ function computeBasicStats(records) {
   });
   return {grades,years,areas};
 }
+function renderStatsCharts(stats,total){
+  function bars(id,entries){
+    const box=document.getElementById(id);box.replaceChildren();
+    if(!total){const p=document.createElement('p');p.textContent='표시할 조사자료가 없습니다.';box.append(p);return;}
+    const note=document.createElement('p');note.className='chart-caption';note.textContent='선택 지역 내 비율 · 막대 전체 길이 = 100%';box.append(note);
+    for(const [name,count] of entries){
+      const percent=count/total*100;
+      const row=document.createElement('div');row.className='stat-bar-row';
+      const header=document.createElement('div');header.className='stat-bar-header';
+      const label=document.createElement('span');label.textContent=name;
+      const value=document.createElement('strong');value.textContent=count.toLocaleString()+'건 · '+percent.toFixed(1)+'%';
+      const track=document.createElement('div');track.className='stat-bar-track';track.setAttribute('aria-hidden','true');
+      const fill=document.createElement('div');fill.className='stat-bar-fill';fill.style.width=percent+'%';
+      if(/미기재|확인 필요/.test(name))fill.classList.add('unknown');
+      track.append(fill);header.append(label,value);row.append(header,track);box.append(row);
+    }
+  }
+  bars('gradeChart',[...stats.grades].sort((a,b)=>a[0].localeCompare(b[0],'ko',{numeric:true})));
+  bars('approvalChart',stats.years);
+  const cards=document.getElementById('areaCards');cards.replaceChildren();
+  stats.areas.forEach((a,i)=>{
+    const card=document.createElement('div');card.className='area-stat-card';
+    const label=document.createElement('span');label.textContent=['건축면적 평균','대지면적 평균','연면적 평균'][i];
+    const value=document.createElement('strong');value.textContent=a.mean===null?'—':a.mean.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})+' ㎡';
+    const sample=document.createElement('small');sample.textContent=a.count?'산정 '+a.count.toLocaleString()+'건':'유효 면적 없음';
+    card.append(label,value,sample);cards.append(card);
+  });
+}
+
 function renderBasicStats() {
   const records=allRecords.filter(r=>!selectedRegion||r.region===selectedRegion),stats=computeBasicStats(records);
   document.getElementById('statsScope').textContent=(selectedRegion||'세종 전체')+' · 조사 기록 '+records.length+'건 기준';
@@ -473,6 +523,7 @@ function renderBasicStats() {
   function distribution(id,entries){const body=document.getElementById(id);body.replaceChildren();for(const [name,count]of entries)row(body,[name,count.toLocaleString()+'건',records.length?(count/records.length*100).toFixed(1)+'%':'—']);row(body,['합계',records.length.toLocaleString()+'건',records.length?'100.0%':'—'],true);}
   distribution('gradeStats',[...stats.grades].sort((a,b)=>a[0].localeCompare(b[0],'ko',{numeric:true})));
   distribution('approvalStats',stats.years);
+  renderStatsCharts(stats,records.length);
   const body=document.getElementById('areaStats');body.replaceChildren();
   stats.areas.forEach((a,i)=>row(body,[['건축면적','대지면적','연면적'][i],a.mean===null?'—':a.mean.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2})+' ㎡',a.count+'건',a.zero+'건',a.missing+'건']));
 }
@@ -800,11 +851,25 @@ function projectCoordinate(longitude, latitude) {
           330 - (latitude - MAP_PROJECTION.centerY) * MAP_PROJECTION.scale];
 }
 
+function pointGradeStyle(points) {
+  const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
+  const records=allRecords.filter(r=>addresses.has(normalizeAddress(r.address)));
+  const labels=[...new Set(records.map(r=>String(r.grade??'').trim()||'미기재'))];
+  const numbers=labels.map(label=>label.replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급$/)).filter(Boolean).map(match=>Number(match[1]));
+  const grade=numbers.length?Math.max(...numbers):null;
+  const palette={1:['#16865b','#075339'],2:['#eacb32','#806b05'],3:['#f28a2b','#9c4a09'],4:['#d84747','#8d2020']};
+  const [fill,stroke]=grade?palette[grade]:['#929b9f','#505a60'];
+  return {fill,stroke,grade,label:grade?grade+'등급 색상':'신규·미기재·등급 확인 필요',original:labels.join(', ')||'일치하는 조사자료 없음',mixed:labels.length>1};
+}
+
 function createHouseDetails(points) {
   const box=document.createElement('div');box.className='house-details';
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
   const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address)));
   const heading=document.createElement('strong');heading.textContent='빈집 조사 상세 · '+matches.length+'건';box.append(heading);
+  const gradeStyle=pointGradeStyle(points), gradeNote=document.createElement('p');
+  gradeNote.textContent='점 색상: '+gradeStyle.label+' · 원본 등급: '+gradeStyle.original+(gradeStyle.mixed?' · 같은 위치의 여러 등급 중 숫자가 가장 높은 등급 색을 표시합니다.':'');
+  box.append(gradeNote);
   const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
   const area=value=>{const text=display(value);return text==='미기재'?text:text+' ㎡';};
   matches.forEach((record,index)=>{
@@ -834,8 +899,9 @@ function renderPoints() {
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   for(const points of groups.values()){
     const first=points[0];
-    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
-    const tip=document.createElement('span');tip.textContent=first.address+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
+    const gradeStyle=pointGradeStyle(points);
+    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:gradeStyle.stroke,fillColor:gradeStyle.fill,fillOpacity:1,bubblingMouseEvents:false});
+    const tip=document.createElement('span');tip.textContent=first.address+' · '+gradeStyle.original+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
     marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360})
       .on('click',()=>showPointDetails(points));marker.addTo(pointLayer);
   }

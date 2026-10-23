@@ -220,7 +220,10 @@
       <label for="baseKey">브이월드 배경지도 인증키</label>
       <input id="baseKey" type="password" autocomplete="off" placeholder="발급받은 인증키">
       <button id="connectBase" type="button" disabled>일반지도 연결</button>
-      <p id="baseStatus" class="map-note" role="status">인증키를 입력하면 배경지도를 불러옵니다. 키는 저장하지 않으며 다시 방문할 때 입력합니다.</p>
+      <label style="display:block;margin-top:10px"><input id="rememberBaseKey" type="checkbox" style="width:auto"> 이 브라우저에 인증키 기억하기</label>
+      <button id="forgetBaseKey" type="button">저장된 인증키 지우기</button>
+      <p id="keyStorageStatus" class="map-note" role="status">개인 컴퓨터에서 체크하세요. 체크 후 연결하면 다음 방문에 자동 연결됩니다.</p>
+      <p id="baseStatus" class="map-note" role="status">인증키를 입력하면 배경지도를 불러옵니다. 기억하기를 체크하면 이 브라우저에 저장합니다.</p>
       <label for="boundaryOpacity">지역 색 진하기</label><input id="boundaryOpacity" type="range" min="0" max="60" value="20">
     </div>
     <div class="map-navigation" role="group" aria-label="지도 확대 축소">
@@ -568,6 +571,7 @@ function initializeMap() {
   document.getElementById('boundaryOpacity').addEventListener('input',updateMap);
   document.getElementById('connectBase').disabled=false;
   updateMap();
+  restoreBaseKey();
 }
 function updateMap() {
   if(!liveMap)return;
@@ -583,12 +587,40 @@ function updateMap() {
   document.getElementById('mapStatus').textContent=(selectedRegion||'세종 전체')+' · 지역을 누르면 해당 지역을 선택합니다.'+(missing?' 지도에 연결되지 않은 '+missing+'건은 표를 확인하세요.':'');
   renderPoints();
 }
-document.getElementById('connectBase').addEventListener('click',()=>{
+const baseKeyStorageName='sejong-dashboard:v1:'+new URL('.',location.href).pathname+':vworld-key';
+function forgetBaseKey(){
+  try{localStorage.removeItem(baseKeyStorageName);document.getElementById('keyStorageStatus').textContent='저장된 인증키를 지웠습니다. 다음 방문에는 자동 연결하지 않습니다.';return true;}
+  catch{document.getElementById('keyStorageStatus').textContent='저장된 키를 지우지 못했습니다. 브라우저의 사이트 데이터 설정에서 삭제해 주세요.';return false;}
+}
+function restoreBaseKey(){
+  try{
+    const key=localStorage.getItem(baseKeyStorageName);
+    if(!key)return;
+    if(!/^[a-zA-Z0-9-]+$/.test(key)){forgetBaseKey();return;}
+    document.getElementById('rememberBaseKey').checked=true;
+    document.getElementById('baseKey').value=key;
+    document.getElementById('keyStorageStatus').textContent='이 브라우저에 기억한 인증키로 자동 연결합니다.';
+    connectBaseMap();
+  }catch{document.getElementById('keyStorageStatus').textContent='저장된 인증키를 읽지 못했습니다. 직접 입력해 연결하세요.';}
+}
+document.getElementById('rememberBaseKey').addEventListener('change',function(){
+  if(!this.checked)forgetBaseKey();
+  else document.getElementById('keyStorageStatus').textContent='인증키를 입력하고 일반지도 연결을 누르면 저장됩니다.';
+});
+document.getElementById('forgetBaseKey').addEventListener('click',()=>{
+  if(forgetBaseKey())document.getElementById('rememberBaseKey').checked=false;
+  document.getElementById('baseKey').value='';
+});
+function connectBaseMap(){
   const input=document.getElementById('baseKey'),status=document.getElementById('baseStatus');
   const key=input.value.trim();
   if(!liveMap){status.textContent='지도 도구가 준비되지 않았습니다. 새로고침해 주세요.';return;}
   if(location.protocol!=='https:'){status.textContent='GitHub Pages의 HTTPS 주소로 열어주세요.';return;}
   if(!/^[a-zA-Z0-9-]+$/.test(key)){status.textContent='발급받은 인증키를 입력하세요.';return;}
+  if(document.getElementById('rememberBaseKey').checked){
+    try{localStorage.setItem(baseKeyStorageName,key);document.getElementById('keyStorageStatus').textContent='인증키를 이 브라우저에 저장했습니다. 다음 방문에 자동 연결합니다.';}
+    catch{document.getElementById('keyStorageStatus').textContent='인증키를 저장하지 못했습니다. 이번 연결만 사용하며 다음 방문에는 다시 입력해 주세요.';}
+  }else{forgetBaseKey();}
   if(baseTiles){baseTiles.off();liveMap.removeLayer(baseTiles);}
   let successes=0,failures=0;
   baseTiles=L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/'+encodeURIComponent(key)+'/Base/{z}/{y}/{x}.png',{
@@ -601,7 +633,8 @@ document.getElementById('connectBase').addEventListener('click',()=>{
   baseTiles.on('load',()=>{status.textContent=failures?'배경지도 일부 또는 전체를 불러오지 못했습니다. 인증키·등록 URL·WMTS/TMS API 권한과 인터넷 연결을 확인하세요.':successes?'브이월드 일반지도 연결됨 · 확대하면 도로와 건물을 살펴볼 수 있습니다.':'현재 영역의 배경지도를 확인해 주세요.';});
   status.textContent='브이월드 일반지도를 연결합니다.';
   baseTiles.addTo(liveMap);input.value='';
-});
+}
+document.getElementById('connectBase').addEventListener('click',connectBaseMap);
 
 const MAP_PROJECTION = {"centerX": 127.26846706447992, "centerY": 36.57026017312206, "cos": 0.8031268422595672, "scale": 1834.8419546529756, "minX": 127.12765872447403, "maxX": 127.4092754044858, "minY": 36.40675835257603, "maxY": 36.73376199366809};
 // 좌표 CSV는 브라우저에서 읽습니다. 이 단계에서는 주소 API를 호출하지 않습니다.
@@ -647,7 +680,7 @@ function renderPoints() {
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   for(const points of groups.values()){
     const first=points[0];
-    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
+    const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:7,weight:2,color:'#664100',fillColor:'#ffbf32',fillOpacity:1,bubblingMouseEvents:false});
     const tip=document.createElement('span');tip.textContent=first.address+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
     const popup=document.createElement('div');
     const title=document.createElement('strong');title.textContent=points.length>1?'같은 좌표의 조사 기록 '+points.length+'건':first.address;popup.append(title);

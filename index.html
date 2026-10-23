@@ -260,12 +260,22 @@ summary { cursor:pointer; font-weight:bold; }
  .dashboard-right .vacancy-story p { font-size:12px; line-height:1.85; margin:10px 0; }
  .vacancy-story details { margin-top:12px; border-top:1px solid #d6e2d2; padding-top:10px; }
  .vacancy-story summary { font-size:11px; color:#607168; }
+</style><style>
+ .survey-tabs { display:flex; gap:8px; border-bottom:1px solid #ccd9cf; padding:0 0 10px; margin:18px 0 8px; }
+ .survey-tabs a { padding:10px 22px; border-radius:7px; background:#e8eee6; text-decoration:none; color:#365847; font-weight:700; }
+ .survey-tabs a[aria-current=page] { background:#21664f; color:white; }
+ .year-notice { margin:8px 0 18px; font-size:12px; color:#607168; }
 </style></head>
 
 <body>
   <h1>세종시 빈집 현황판</h1>
   <p>세종시 빈집은 어디에 많을까?</p>
 
+<nav id="surveyTabs" class="survey-tabs" aria-label="조사자료 선택">
+ <a href="?year=2026" data-year="2026">2026년 자료</a>
+ <a href="?year=2021" data-year="2021">2021년 조사</a>
+</nav>
+<p id="yearNotice" class="year-notice" role="status"></p>
 <main class="dashboard-grid">
 <aside class="dashboard-left" aria-label="카테고리와 지역 선택"><h2>빈집 현황 보기</h2><nav class="category-buttons" aria-label="통계 카테고리"><button type="button" data-category="all" aria-pressed="false">전체 요약</button><button type="button" data-category="type" aria-pressed="false">주택유형 현황</button><button type="button" data-category="grade" aria-pressed="false">등급 현황</button><button type="button" data-category="approval" aria-pressed="false">사용승인 현황</button><button type="button" data-category="area" aria-pressed="false">면적 기초통계</button><button type="button" data-category="point" aria-pressed="false">선택한 빈집 상세</button></nav>
 <h3 id="gradeFilterLabel">조회 등급</h3><div id="gradeFilters" class="region-buttons" role="group" aria-labelledby="gradeFilterLabel"><button type="button" class="region-button" data-grade="all" aria-pressed="true">전체 등급</button><button type="button" class="region-button" data-grade="1" aria-pressed="false">🟢 1등급</button><button type="button" class="region-button" data-grade="2" aria-pressed="false">🟡 2등급</button><button type="button" class="region-button" data-grade="3" aria-pressed="false">🟠 3등급</button><button type="button" class="region-button" data-grade="4" aria-pressed="false">🔴 4등급</button><button type="button" class="region-button" data-grade="unknown" aria-pressed="false">신규·미기재·기타</button></div><p style="font-size:11px;color:#607168">여러 등급을 선택할 수 있습니다. 다시 누르면 해제됩니다. 모두 해제하면 전체 등급을 표시합니다. (구)등급은 같은 숫자에 포함합니다.</p>
@@ -290,7 +300,7 @@ summary { cursor:pointer; font-weight:bold; }
 
   <div style="padding:12px 16px; background:#e7eee3; border-radius:8px; margin:16px 0;">
     <p id="storageStatus" role="status" style="margin:0 0 8px;">저장된 자료를 확인하고 있습니다.</p>
-    <button id="clearSavedData" type="button" class="region-button">이 브라우저의 저장된 자료 지우기</button>
+    <button id="clearSavedData" type="button" class="region-button">현재 연도 탭의 저장자료 지우기</button>
     <p style="font-size:12px; margin-bottom:0;">같은 브라우저에서 다시 열면 자동 복원됩니다. 새 파일을 선택하면 교체됩니다. 원본 파일의 수정 내용은 새 파일을 선택해야 반영됩니다.</p>
   </div>
 </details><details><summary>좌표·배경지도 설정</summary>    <div class="point-controls">
@@ -368,7 +378,7 @@ summary { cursor:pointer; font-weight:bold; }
 
 <section id="regionSummaryPanel">  <h2>지역별 조사 현황</h2>
   <p>
-    첫 번째 시트의 소재지가 있는 행을 한 건으로 셉니다.
+    첫 번째 시트의 소재지 또는 주소가 있는 행을 한 건으로 셉니다.
     동일 주소의 반복 기록도 포함합니다.
   </p>
 
@@ -439,6 +449,13 @@ summary { cursor:pointer; font-weight:bold; }
   ></script>
 
   <script>
+const activeYear=new URLSearchParams(location.search).get('year')==='2021'?'2021':'2026';
+for(const tab of document.querySelectorAll('[data-year]')){if(tab.dataset.year===activeYear)tab.setAttribute('aria-current','page');}
+document.getElementById('yearNotice').textContent=activeYear==='2021'
+  ?'2021년 조사자료 · 주소·등급 중심 자료입니다. 주택유형·사용승인연도·면적은 제공되지 않습니다. 첫 시트만 집계합니다.'
+  :'2026년 파일 기준 자료 · 과거 조사연도 기록도 포함된 파일입니다. 탭은 파일을 구분하며 개별 기록의 조사연도는 그대로 유지합니다.';
+for(const link of document.querySelectorAll('a[href="./bulk-geocode.html"]'))link.href='./bulk-geocode.html?year='+activeYear;
+document.querySelector('label[for="excelFile"]').textContent=activeYear+'년 조사 엑셀 선택';
 const fileInput = document.getElementById('excelFile');
 const message = document.getElementById('fileMessage');
 const regionButtons = document.getElementById('regionButtons');
@@ -448,7 +465,7 @@ function regionDescription(){return selectedRegions.size?[...selectedRegions].jo
 function regionPressed(region){return region?selectedRegions.has(region):!selectedRegions.size;}
 const selectedGrades = new Set();
 function gradeKey(record){
-  const match=String(record.grade??'').replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급$/);
+  const match=String(record.grade??'').replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급(?:\(.*\))?$/);
   return match?match[1]:'unknown';
 }
 function matchesGrade(record){return !selectedGrades.size||selectedGrades.has(gradeKey(record));}
@@ -571,7 +588,7 @@ function buildVacancyStory(records){
   if(years.length){
     const old=years.filter(y=>y<1980).length;
     lines.push('사용승인연도를 확인할 수 있는 '+years.length+'건 중 1980년 이전 기록은 '+old+'건('+pct(old,years.length)+')입니다.'+(years.length<total?' 나머지 '+(total-years.length)+'건은 연도 미기재·확인 필요 기록입니다.':''));
-  }else lines.push('사용승인연도를 확인할 수 없습니다. 원본 엑셀을 다시 선택하거나 해당 열을 확인해 주세요.');
+  }else lines.push(activeYear==='2021'?'2021년 원본에는 사용승인연도·면적·주택유형이 없어 해당 특성을 비교할 수 없습니다.':'사용승인연도를 확인할 수 없습니다. 원본 엑셀을 다시 선택하거나 해당 열을 확인해 주세요.');
   const good=records.filter(r=>['1','2'].includes(gradeKey(r))).length;
   const poor=records.filter(r=>['3','4'].includes(gradeKey(r))).length;
   const other=total-good-poor;
@@ -588,7 +605,7 @@ function renderVacancyStory(records){
 function renderBasicStats() {
   const records=allRecords.filter(r=>(matchesRegion(r.region))&&matchesGrade(r)),stats=computeBasicStats(records);
   renderVacancyStory(records);
-  document.getElementById('statsScope').textContent=regionDescription()+' · '+gradeDescription()+' · 조사 기록 '+records.length+'건 기준';
+  document.getElementById('statsScope').textContent=activeYear+'년 자료 · '+regionDescription()+' · '+gradeDescription()+' · 조사 기록 '+records.length+'건 기준';
   document.getElementById('statsReload').textContent=records.some(r=>r.statsVersion!==1)?'연도와 면적을 모두 집계하려면 원본 조사 엑셀을 한 번 다시 선택하세요.':'';
   function row(body,values,total=false){const tr=document.createElement('tr');if(total)tr.className='stats-total';for(const value of values){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}
   function distribution(id,entries){const body=document.getElementById(id);body.replaceChildren();for(const [name,count]of entries)row(body,[name,count.toLocaleString()+'건',records.length?(count/records.length*100).toFixed(1)+'%':'—']);row(body,['합계',records.length.toLocaleString()+'건',records.length?'100.0%':'—'],true);}
@@ -731,23 +748,26 @@ fileInput.addEventListener('change', async function () {
     });
 
     const headerIndex = rows.findIndex(row =>
-      row.some(value => String(value).trim() === '소재지')
+      row.some(value => ['소재지','주소'].includes(String(value).trim()))
     );
     if (headerIndex === -1) {
-      throw new Error("첫 번째 시트에서 '소재지' 열을 찾지 못했습니다.");
+      throw new Error("첫 번째 시트에서 '소재지' 또는 '주소' 열을 찾지 못했습니다.");
     }
 
     const addressIndex = rows[headerIndex].findIndex(value =>
-      String(value).trim() === '소재지'
+      ['소재지','주소'].includes(String(value).trim())
     );
 
     const typeIndex = rows[headerIndex].findIndex(value =>
       String(value).trim() === '주택유형'
     );
     const gradeIndex = rows[headerIndex].findIndex(value =>
-      String(value).trim() === '등급'
+      ['등급','판별등급명'].includes(String(value).trim())
     );
 
+    const surveyNameIndex=rows[headerIndex].findIndex(v=>String(v).trim()==='실태조사명');
+    const filenameYear=file.name.match(/(2021|2026)년/);
+    if(filenameYear&&filenameYear[1]!==activeYear)throw new Error(filenameYear[1]+'년 파일입니다. 해당 연도 탭에서 선택하세요.');
     const detailColumns = {
       surveyYear:['조사년도','조사연도'], approvalDate:['사용승인일자','사용승인연도','사용승인년도'],
       landArea:['대지면적','대지면적(㎡)'], buildingArea:['건축면적','건축면적(㎡)'], totalArea:['연면적','연면적(㎡)']
@@ -771,7 +791,7 @@ fileInput.addEventListener('change', async function () {
         type: typeIndex >= 0 ? String(row[typeIndex] ?? '').trim() : '',
         grade: gradeIndex >= 0 ? String(row[gradeIndex] ?? '').trim() : '',
         detailVersion:1, statsVersion:1,
-        ...Object.fromEntries(Object.entries(detailIndexes).map(([key,index])=>[key,index>=0?String(row[index]??'').trim():'']))
+        ...Object.fromEntries(Object.entries(detailIndexes).map(([key,index])=>[key,index>=0?String(row[index]??'').trim():key==='surveyYear'&&surveyNameIndex>=0?(String(row[surveyNameIndex]??'').match(/(\d{4})년/)?.[1]||''):'']))
       });
     }
 
@@ -922,7 +942,7 @@ function pointGradeStyle(points) {
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
   const records=allRecords.filter(r=>addresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&(matchesRegion(r.region)));
   const labels=[...new Set(records.map(r=>String(r.grade??'').trim()||'미기재'))];
-  const numbers=labels.map(label=>label.replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급$/)).filter(Boolean).map(match=>Number(match[1]));
+  const numbers=labels.map(label=>label.replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급(?:\(.*\))?$/)).filter(Boolean).map(match=>Number(match[1]));
   const grade=numbers.length?Math.max(...numbers):null;
   const palette={1:['#16865b','#075339'],2:['#eacb32','#806b05'],3:['#f28a2b','#9c4a09'],4:['#d84747','#8d2020']};
   const [fill,stroke]=grade?palette[grade]:['#929b9f','#505a60'];
@@ -938,7 +958,7 @@ function createHouseDetails(points) {
   gradeNote.textContent='점 색상: '+gradeStyle.label+' · 원본 등급: '+gradeStyle.original+(gradeStyle.mixed?' · 같은 위치의 여러 등급 중 숫자가 가장 높은 등급 색을 표시합니다.':'');
   box.append(gradeNote);
   const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
-  const area=value=>{const text=display(value);return text==='미기재'?text:text+' ㎡';};
+  const area=value=>{const text=display(value);return text==='미기재'?(activeYear==='2021'?'원본 자료 없음':text):text+' ㎡';};
   matches.forEach((record,index)=>{
     const section=document.createElement('section');
     const title=document.createElement('h4');title.textContent='조사 기록 '+(index+1)+' · '+record.address;section.append(title);
@@ -1020,8 +1040,9 @@ document.getElementById('coordinateFile').addEventListener('change', async funct
 // 같은 사이트와 브라우저에 마지막으로 성공한 자료를 저장합니다.
 // 원본 파일이나 인증키가 아니라, 화면에 필요한 기록과 좌표만 저장합니다.
 const storageScope = 'sejong-dashboard:v1:' + location.pathname.replace(/index\.html$/, '');
-const surveyStorageKey = storageScope + ':survey';
-const coordinateStorageKey = storageScope + ':coordinates';
+const yearScope=storageScope+(activeYear==='2021'?':2021':'');
+const surveyStorageKey = yearScope + ':survey';
+const coordinateStorageKey = yearScope + ':coordinates';
 let surveySource = null;
 let coordinateSource = null;
 
@@ -1133,7 +1154,7 @@ document.getElementById('clearSavedData').addEventListener('click', function () 
   fileInput.value = '';
   document.getElementById('coordinateFile').value = '';
   message.textContent = '저장된 자료를 지웠습니다. 원본 엑셀과 CSV 파일은 그대로 있습니다.';
-  updateStorageStatus('이 브라우저에 저장한 조사자료와 좌표를 지웠습니다.');
+  updateStorageStatus(activeYear+'년 탭의 조사자료와 좌표를 지웠습니다. 다른 연도 자료는 유지됩니다.');
 });
 
 // 모든 화면 요소와 변수가 준비된 뒤 실행합니다. 파일을 다시 고를 필요가 없습니다.

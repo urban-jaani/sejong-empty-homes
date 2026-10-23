@@ -24,6 +24,25 @@
     font-size: 12px;
     color: #526b5a;
   }
+
+    .map-panel { margin-top: 32px; border: 1px solid #d5dfd2; border-radius: 12px; overflow: hidden; background: white; }
+    .map-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; gap: 10px; }
+    .map-top h2 { margin: 0; padding: 0; border: 0; font-size: 20px; }
+    #mapReset { padding: 8px 12px; background: white; border: 1px solid #b8cbb9; border-radius: 6px; cursor: pointer; color: #19352f; }
+    .map-stage { position: relative; background: #f1f2eb; }
+    #sejongMap { display: block; width: 100%; height: 620px; }
+    .map-north { position: absolute; right: 20px; top: 16px; color: #6e7e70; text-align: center; }
+    .map-region { stroke: white; stroke-width: 1.3; stroke-linejoin: round; cursor: pointer; }
+    .map-region[aria-disabled="true"] { cursor: default; }
+    .map-region:hover, .map-region:focus { stroke: #bc8227; stroke-width: 2.5; outline: none; }
+    .map-region[aria-pressed="true"] { stroke: #c18423; stroke-width: 3.5; }
+    .map-label { font: bold 12px "Malgun Gothic", sans-serif; fill: #183b2e; text-anchor: middle; paint-order: stroke; stroke: white; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+    .map-count { font-size: 11px; font-weight: normal; }
+    .map-legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px 20px 0; font-size: 12px; }
+    .map-legend i { display: inline-block; width: 20px; height: 12px; margin-right: 5px; }
+    .map-note { font-size: 12px; color: #526b5a; margin: 12px 20px; }
+    .map-note a { color: #21664f; }
+    @media (max-width: 600px) { #sejongMap { height: 500px; } .map-top h2 { font-size: 17px; } }
 </style>
   <style>
     body {
@@ -168,6 +187,27 @@
     </div>
   </div>
 
+
+  <section class="map-panel" aria-labelledby="mapTitle">
+    <div class="map-top"><h2 id="mapTitle">세종시 빈집 조사 분포</h2><button type="button" id="mapReset">세종 전체 보기</button></div>
+    <div class="map-stage">
+      <svg id="sejongMap" viewBox="0 0 600 660" role="group" aria-label="세종시 행정구역별 빈집 조사 분포"></svg>
+      <span class="map-north">N<br>↑</span>
+    </div>
+    <div class="map-legend" aria-label="지역별 조사 기록 수 범례">
+      <span><i style="background:#e0e4dc"></i>자료 없음</span>
+      <span><i style="background:#d7e8c6"></i>1~29건</span>
+      <span><i style="background:#a8cb9c"></i>30~59건</span>
+      <span><i style="background:#70a67a"></i>60~89건</span>
+      <span><i style="background:#347454"></i>90건 이상</span>
+    </div>
+    <p id="mapStatus" class="map-note" role="status">지도 경계를 불러오고 있습니다.</p>
+    <p class="map-note">기록이 있는 지역을 누르면 카드와 상세 목록이 바뀝니다. 회색은 선택한 엑셀에 기록이 없는 지역입니다. 개별 빈집 위치가 아닌 지역별 조사 기록 수입니다.</p>
+    <details class="map-note"><summary>지도 출처와 기준</summary>
+      <p>경계 기준: 2026.10.01. 통계청 <a href="https://sgis.kostat.go.kr" target="_blank" rel="noopener">SGIS</a> 행정동 경계(공공누리 제1유형), 가공: <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noopener">vuski/admdongkor</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>). 세종시 경계를 추출하고 화면용 좌표로 변환했습니다. 과거 조사 기록도 이 경계의 지역명에 연결합니다.</p>
+    </details>
+  </section>
+
   <h2>지역별 조사 현황</h2>
   <p>
     첫 번째 시트의 소재지가 있는 행을 한 건으로 셉니다.
@@ -264,6 +304,7 @@ function resetResults() {
   tableTotal.textContent = '—';
   tablePercent.textContent = '—';
   selectionMessage.textContent = '엑셀을 선택한 뒤 지역을 고를 수 있습니다.';
+  updateMap();
 }
 
 // 지역을 바꿀 때 카드, 표, 막대, 합계를 함께 다시 그립니다.
@@ -298,6 +339,7 @@ function renderDetails() {
 }
 
 function renderResults() {
+  updateMap();
   renderDetails();
   const selected = selectedRegion;
   const entries = [...allCounts.entries()]
@@ -456,6 +498,100 @@ fileInput.addEventListener('change', async function () {
   }
 });
 
+// 경계 파일은 지역 모양만 담고 있습니다. 건수는 선택한 엑셀에서 가져옵니다.
+let mapShapes = [];
+const svgNS = 'http://www.w3.org/2000/svg';
+
+function selectMapRegion(region) {
+  selectedRegion = region;
+  for (const button of regionButtons.children) {
+    button.setAttribute('aria-pressed', String(button.dataset.region === region));
+  }
+  renderResults();
+}
+
+function initializeMap() {
+  if (typeof SEJONG_MAP === 'undefined') return;
+  const svg = document.getElementById('sejongMap');
+  svg.replaceChildren();
+  const paths = document.createElementNS(svgNS, 'g');
+  const labels = document.createElementNS(svgNS, 'g');
+  svg.append(paths, labels);
+  mapShapes = SEJONG_MAP.regions.map(region => {
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', region.path);
+    path.setAttribute('class', 'map-region');
+    path.setAttribute('fill-rule', 'evenodd');
+    path.setAttribute('role', 'button');
+    const title = document.createElementNS(svgNS, 'title');
+    path.append(title);
+    paths.append(path);
+
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', region.x);
+    label.setAttribute('y', region.y);
+    label.setAttribute('class', 'map-label');
+    label.setAttribute('aria-hidden', 'true');
+    const name = document.createElementNS(svgNS, 'tspan');
+    name.textContent = region.name;
+    const count = document.createElementNS(svgNS, 'tspan');
+    count.setAttribute('x', region.x);
+    count.setAttribute('dy', '17');
+    count.setAttribute('class', 'map-count');
+    label.append(name, count);
+    labels.append(label);
+
+    function choose() {
+      if (allCounts.has(region.name)) selectMapRegion(region.name);
+      else document.getElementById('mapStatus').textContent =
+        region.name + ': 선택한 엑셀에 기록이 없습니다. 실제 빈집이 없다는 뜻은 아닙니다.';
+    }
+    path.addEventListener('click', choose);
+    path.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        choose();
+      }
+    });
+    return {region, path, title, label, count};
+  });
+  updateMap();
+}
+
+function updateMap() {
+  if (!mapShapes.length) return;
+  for (const {region, path, title, label, count} of mapShapes) {
+    const n = allCounts.get(region.name) || 0;
+    const color = !n ? '#e0e4dc' : n < 30 ? '#d7e8c6' :
+      n < 60 ? '#a8cb9c' : n < 90 ? '#70a67a' : '#347454';
+    path.setAttribute('fill', color);
+    path.setAttribute('aria-pressed', String(selectedRegion === region.name));
+    path.setAttribute('aria-disabled', String(!n));
+    path.setAttribute('tabindex', n ? '0' : '-1');
+    const description = region.name + ': ' + (n ? n + '건' : '자료 없음');
+    path.setAttribute('aria-label', description);
+    title.textContent = description;
+    // 작은 동 지역 이름은 겹치지 않도록 마우스를 올렸을 때 표시합니다.
+    label.setAttribute('display', /[읍면]$/.test(region.name) || n ? '' : 'none');
+    count.textContent = n ? n + '건' : '자료 없음';
+  }
+  const names = new Set(mapShapes.map(item => item.region.name));
+  const unmapped = [...allCounts].reduce((sum, [name, n]) =>
+    sum + (names.has(name) ? 0 : n), 0);
+  document.getElementById('mapStatus').textContent = allTotal
+    ? (selectedRegion || '세종 전체') + ' 조회 중 · 지도 색은 파일 전체의 지역별 건수 기준입니다.' +
+      (unmapped ? ' 지도와 연결되지 않은 ' + unmapped + '건은 표에서 확인하세요.' : '')
+    : '엑셀을 선택하면 지역별 색과 건수가 표시됩니다.';
+}
+
+document.getElementById('mapReset').addEventListener('click', function () {
+  if (allTotal) selectMapRegion('');
+});
+
   </script>
+  <script defer src="./sejong-map.js"
+    onload="initializeMap()"
+    onerror="document.getElementById('mapStatus').textContent = '지도 파일을 찾지 못했습니다. sejong-map.js를 index.html과 같은 폴더에 올렸는지 확인해 주세요.';"
+  ></script>
 </body>
 </html>

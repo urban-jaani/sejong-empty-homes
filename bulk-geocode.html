@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>빈집 전체 주소 좌표 변환</title><style>
+    * { box-sizing: border-box; }
+    body { max-width: 1000px; margin: auto; padding: 40px 24px; font: 16px/1.7 "Malgun Gothic",sans-serif; background:#f3f5ef; color:#19352f; }
+    h1 { color:#21664f; } label { display:block; margin:18px 0 6px; font-weight:bold; }
+    input,textarea,select,button { font:inherit; padding:10px; border:1px solid #b8cbb9; border-radius:6px; }
+    input,textarea { width:100%; background:white; } textarea { min-height:160px; }
+    button { margin:14px 6px 0 0; cursor:pointer; background:#21664f; color:white; }
+    button:disabled { opacity:.5; cursor:default; } .note { font-size:13px; color:#526b5a; }
+    table { width:100%; border-collapse:collapse; background:white; font-size:14px; }
+    th,td { padding:12px; border-bottom:1px solid #dfe7e1; text-align:left; }
+    th { background:#21664f; color:white; } .scroll { overflow:auto; }
+    #status { background:#e7eee3; padding:14px; } a { color:#21664f; }
+  </style></head><body>
+<h1>전체 주소를 지도 좌표로 바꾸기</h1>
+<p>이 브라우저에 저장한 조사자료를 사용합니다. 같은 주소는 한 번만 검색하고, 조사 기록은 그대로 유지합니다.</p>
+<p id="summary"></p>
+<label for="apiKey">브이월드 인증키</label><input id="apiKey" type="password" autocomplete="off" placeholder="발급받은 인증키 입력">
+<p class="note">버튼을 누르면 남은 소재지 주소와 인증키를 브이월드로 전송합니다. 인증키는 저장하지 않습니다. 변환 중에는 이 탭을 열어 두세요.</p>
+<button id="five">남은 5개 주소 전송·시험</button><button id="all">남은 전체 주소 전송·변환</button><button id="stop" disabled>현재 요청 후 중지</button>
+<p id="status" role="status">저장된 자료를 확인합니다.</p>
+<p><a href="./">빈집 현황판으로 돌아가 지도 보기</a></p>
+<p class="note">좌표가 반환돼도 실제 건물 위치와 대조해야 합니다. 검색 실패나 세종시 범위 밖 좌표는 지도에 점을 찍지 않습니다. 중지 후 다시 열면 저장된 결과에 이어서 진행합니다. 브라우저 데이터를 지우면 저장 결과도 사라집니다.</p>
+<button id="retry">찾지 못한 주소를 재시도 대상으로 바꾸기</button><button id="download">결과 CSV 저장</button>
+<div class="scroll"><table><thead><tr><th>주소 (중복 제외)</th><th>결과</th></tr></thead><tbody id="results"></tbody></table></div>
+<script>const get=id=>document.getElementById(id);let requestNumber=0;
+    function requestCoordinates(address, type, key) {
+      return new Promise((resolve, reject) => {
+        const callback = 'vworldAddress_' + Date.now() + '_' + (++requestNumber);
+        const script = document.createElement('script');
+        let finished = false;
+        let timer;
+        function finish(error, data) {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          script.remove();
+          delete window[callback];
+          if (error) reject(error); else resolve(data);
+        }
+        window[callback] = data => finish(null, data);
+        script.onerror = () => finish(new Error('연결 실패: 네트워크와 브이월드 설정을 확인하세요.'));
+        const url = new URL('https://api.vworld.kr/req/address');
+        const parameters = {
+          service: 'address', request: 'getcoord', version: '2.0',
+          crs: 'EPSG:4326', format: 'json', errorformat: 'json',
+          type, address, key, callback,
+          domain: new URL('.', location.href).href
+        };
+        for (const [name, value] of Object.entries(parameters)) url.searchParams.set(name, value);
+        script.src = url.href;
+        timer = setTimeout(() => finish(new Error('20초 동안 응답이 없습니다. 네트워크와 인증키 설정을 확인하세요.')), 20000);
+        document.head.append(script);
+      });
+    }
+
+    function parseResponse(data) {
+      const response = data && data.response;
+      if (!response) throw new Error('예상과 다른 응답입니다.');
+      if (response.status === 'NOT_FOUND') return {x:'', y:'', state:'주소를 찾지 못함'};
+      if (response.status !== 'OK') {
+        const code = String(response.error?.code || 'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g,'');
+        throw new Error('브이월드 오류 (' + code + '). 인증키·서비스 URL·활용 API를 확인하세요.');
+      }
+      const point = response.result?.point;
+      if (point?.x == null || point?.y == null || String(point.x).trim()==='' || String(point.y).trim()==='') {
+        throw new Error('응답에 좌표가 없습니다.');
+      }
+      const x = Number(point.x), y = Number(point.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < -180 || x > 180 || y < -90 || y > 90) {
+        throw new Error('올바르지 않은 좌표가 반환되었습니다.');
+      }
+      return {x, y, state:'좌표 반환 · 지도 대조 필요'};
+    }
+
+const scope='sejong-dashboard:v1:'+new URL('.',location.href).pathname;
+const surveyKey=scope+':survey', coordinateKey=scope+':coordinates';
+const normalize=s=>s.trim().replace(/\s+/g,' ');
+const inside=(x,y)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=127.12765872447403&&x<=127.4092754044858&&y>=36.40675835257603&&y<=36.73376199366809;
+let sourceRaw, coordinateRaw, records=[], addresses=[], cache=new Map(), running=false, stopped=false;
+function checkUnchanged(){
+  if(localStorage.getItem(surveyKey)!==sourceRaw||localStorage.getItem(coordinateKey)!==coordinateRaw) throw new Error('다른 화면에서 저장 자료가 바뀌었습니다. 이 페이지를 새로고침하세요.');
+}
+function persist(){
+  checkUnchanged();
+  const points=records.flatMap(r=>{const c=cache.get(normalize(r.address));return c?.status==='ok'?[{address:r.address,region:r.region,longitude:c.x,latitude:c.y}]:[];});
+  const rejected=records.filter(r=>{const c=cache.get(normalize(r.address));return c&&c.status!=='ok';}).length;
+  const next=JSON.stringify({version:1,name:'전체 주소 좌표 변환',savedAt:new Date().toISOString(),records:points,rejected,geocoding:[...cache.values()]});
+  try{localStorage.setItem(coordinateKey,next);}catch{throw new Error('브라우저에 저장하지 못해 중지했습니다. 기존 저장 결과는 유지됩니다. 결과 CSV를 내려받아 보관하세요.');}
+  coordinateRaw=next;
+}
+function render(){
+  const done=addresses.filter(a=>cache.has(a)).length, good=addresses.filter(a=>cache.get(a)?.status==='ok').length;
+  get('summary').textContent=`조사 기록 ${records.length}건 · 중복 제외 주소 ${addresses.length}개 · 좌표 확보 ${good}개 · 확인 필요 ${done-good}개 · 미처리 ${addresses.length-done}개`;
+  get('results').replaceChildren();
+  for(const address of addresses){const tr=document.createElement('tr');for(const text of [address,cache.get(address)?.state||'대기']){const td=document.createElement('td');td.textContent=text;tr.append(td);}get('results').append(tr);}
+  for(const id of ['five','all','retry','apiKey'])get(id).disabled=running||!addresses.length;
+  get('stop').disabled=!running;
+  get('download').disabled=!addresses.length;
+}
+function load(){
+  try{
+    sourceRaw=localStorage.getItem(surveyKey); coordinateRaw=localStorage.getItem(coordinateKey);
+    const source=JSON.parse(sourceRaw||'null');
+    if(source?.version!==1||!Array.isArray(source.records)||!source.records.length)throw new Error('먼저 현황판에서 엑셀을 선택해 저장한 뒤, 같은 브라우저에서 이 페이지를 다시 여세요.');
+    if(source.records.some(r=>!r||typeof r.address!=='string'||!r.address.trim()||typeof r.region!=='string'))throw new Error('조사자료 형식을 확인해 주세요. 현황판에서 엑셀을 다시 선택하세요.');
+    records=source.records;addresses=[...new Set(records.map(r=>normalize(r.address)))];
+    const previous=JSON.parse(coordinateRaw||'null');
+    if(previous&&previous.version!==1)throw new Error('저장된 좌표 형식을 확인할 수 없습니다.');
+    for(const c of previous?.geocoding||[]){if(typeof c.address==='string'&&addresses.includes(c.address)&&((c.status==='ok'&&inside(c.x,c.y))||['missing','outside'].includes(c.status)))cache.set(c.address,{address:c.address,status:c.status,x:c.x,y:c.y,state:c.status==='ok'?'좌표 확보 · 지도 대조 필요':c.status==='missing'?'주소를 찾지 못함':'세종시 범위 밖 · 주소 확인 필요'});}
+    for(const c of previous?.records||[]){if(typeof c.address==='string'&&inside(c.longitude,c.latitude)&&addresses.includes(normalize(c.address)))cache.set(normalize(c.address),{address:normalize(c.address),x:c.longitude,y:c.latitude,status:'ok',state:'좌표 확보 · 지도 대조 필요'});}
+    get('status').textContent='저장 자료를 불러왔습니다. 먼저 남은 5개 주소로 시험하세요.';
+  }catch(e){records=[];addresses=[];get('status').textContent=e.message;}
+  render();
+}
+async function run(limit){
+  if(running)return;
+  const key=get('apiKey').value.trim();
+  if(location.protocol!=='https:'){get('status').textContent='GitHub Pages의 HTTPS 주소에서 열어주세요.';return;}
+  if(!key){get('status').textContent='인증키를 입력하세요.';return;}
+  const pending=addresses.filter(a=>!cache.has(a)).slice(0,limit);
+  if(!pending.length){get('status').textContent='미처리 주소가 없습니다. 확인이 필요한 주소는 아래 결과를 살펴보세요.';return;}
+  running=true;stopped=false;render();let completed=0;
+  try{
+    checkUnchanged();
+    for(const address of pending){
+      if(stopped)break;
+      checkUnchanged();get('status').textContent=`이번 작업 ${completed+1}/${pending.length}개 검색 중`;
+      const result=parseResponse(await requestCoordinates(address,'PARCEL',key));
+      checkUnchanged();
+      const status=typeof result.x!=='number'?'missing':inside(result.x,result.y)?'ok':'outside';
+      cache.set(address,{address,x:result.x,y:result.y,status,state:status==='ok'?'좌표 확보 · 지도 대조 필요':status==='missing'?'주소를 찾지 못함':'세종시 범위 밖 · 주소 확인 필요'});
+      persist();completed++;render();
+      if(!stopped&&completed<pending.length)await new Promise(resolve=>setTimeout(resolve,500));
+    }
+    get('status').textContent=`${stopped?'중지':'이번 작업 완료'} · ${completed}개 처리·저장. 현황판으로 돌아가면 저장된 좌표가 표시됩니다.`;
+  }catch(e){get('status').textContent=e.message+' 이전에 저장된 결과부터 이어서 진행할 수 있습니다.';}
+  finally{get('apiKey').value='';running=false;render();}
+}
+get('five').addEventListener('click',()=>run(5));
+get('all').addEventListener('click',()=>run(Infinity));
+get('stop').addEventListener('click',()=>{stopped=true;get('status').textContent='현재 요청을 저장한 뒤 중지합니다.';});
+get('retry').addEventListener('click',()=>{try{checkUnchanged();for(const [a,c]of cache)if(c.status!=='ok')cache.delete(a);persist();render();get('status').textContent='확인 필요 주소를 대기로 바꿨습니다. 변환 버튼을 눌러야 다시 전송합니다.';}catch(e){get('status').textContent=e.message;}});
+get('download').addEventListener('click',()=>{
+  const cell=v=>'"'+String(v??'').replace(/^[\s]*[=+@-]/,"'$&").replace(/"/g,'""')+'"';
+  const rows=[['소재지','경도','위도','결과'],...records.map(r=>{const c=cache.get(normalize(r.address));return[r.address,c?.status==='ok'?c.x:'',c?.status==='ok'?c.y:'',c?.state||'대기'];})];
+  const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='빈집_전체주소_좌표.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+load();
+</script></body></html>

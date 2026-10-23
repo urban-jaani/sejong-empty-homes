@@ -5,21 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>세종시 빈집 현황판</title>
 
+ <style>
   .bar-track {
-  background: #e7eee3;
-  border-radius: 6px;
-  height: 16px;
-  min-width: 100px;
-  overflow: hidden;
-}
+    background: #e7eee3;
+    border-radius: 6px;
+    height: 16px;
+    min-width: 100px;
+    overflow: hidden;
+  }
 
-.bar-fill {
-  background: #57956b;
-  height: 100%;
-  border-radius: 6px;
-}
+  .bar-fill {
+    background: #57956b;
+    height: 100%;
+    border-radius: 6px;
+  }
 
-.share {
+  .share {
+    font-size: 12px;
+    color: #526b5a;
+  }
+</style> {
   font-size: 12px;
   color: #526b5a;
 }
@@ -133,6 +138,13 @@
   </tr>
 </thead>
     <tbody id="regionTable"></tbody>
+    <tfoot>
+  <tr style="background: #e7eee3; font-weight: bold;">
+    <td>합계</td>
+    <td id="tableTotal">—</td>
+    <td id="tablePercent">—</td>
+  </tr>
+</tfoot>
   </table>
 
   <p>
@@ -170,7 +182,9 @@
       totalCount.textContent = "—";
       regionCount.textContent = "—";
       regionTable.replaceChildren();
-
+document.getElementById("tableTotal").textContent = "—";
+document.getElementById("tablePercent").textContent = "—";
+      
       if (!file) {
         message.textContent = "엑셀을 선택해 주세요.";
         return;
@@ -242,6 +256,11 @@
         // 카드에 집계 결과를 표시합니다.
         totalCount.textContent = total.toLocaleString() + "건";
         regionCount.textContent = counts.size + "곳";
+        document.getElementById("tableTotal").textContent =
+  total.toLocaleString() + "건";
+
+document.getElementById("tablePercent").textContent =
+  total > 0 ? "100.0%" : "—";
 
         // 기록 수가 많은 지역부터 정렬합니다.
         const sorted = [...counts.entries()].sort(

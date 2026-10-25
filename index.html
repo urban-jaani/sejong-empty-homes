@@ -762,9 +762,13 @@ fileInput.addEventListener('change', async function () {
       String(value).trim() === '주택유형'
     );
     const gradeIndex = rows[headerIndex].findIndex(value =>
-      ['등급','판별등급명'].includes(String(value).trim())
+      activeYear==='2021'
+        ? String(value).trim().toLowerCase()==='grade'
+        : ['등급','판별등급명'].includes(String(value).trim())
     );
 
+    if(activeYear==='2021'&&gradeIndex<0)throw new Error('2021년 자료에 grade 열이 없습니다. 원본 파일의 열 이름을 확인하세요.');
+    const readGrade=value=>{const text=String(value??'').trim();return activeYear==='2021'&&/^[1-4]$/.test(text)?text+'등급':text;};
     const surveyNameIndex=rows[headerIndex].findIndex(v=>String(v).trim()==='실태조사명');
     const filenameYear=file.name.match(/(2021|2026)년/);
     if(filenameYear&&filenameYear[1]!==activeYear)throw new Error(filenameYear[1]+'년 파일입니다. 해당 연도 탭에서 선택하세요.');
@@ -789,7 +793,7 @@ fileInput.addEventListener('change', async function () {
         region: region,
         address: address,
         type: typeIndex >= 0 ? String(row[typeIndex] ?? '').trim() : '',
-        grade: gradeIndex >= 0 ? String(row[gradeIndex] ?? '').trim() : '',
+        grade: gradeIndex >= 0 ? readGrade(row[gradeIndex]) : '',
         detailVersion:1, statsVersion:1,
         ...Object.fromEntries(Object.entries(detailIndexes).map(([key,index])=>[key,index>=0?String(row[index]??'').trim():key==='surveyYear'&&surveyNameIndex>=0?(String(row[surveyNameIndex]??'').match(/(\d{4})년/)?.[1]||''):'']))
       });

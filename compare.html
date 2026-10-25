@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>세종 빈집 · 2021년과 2026년 비교</title>
+<link rel="stylesheet" href="https://hangeul.pstatic.net/hangeul_static/css/nanum-square-neo.css"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0 auto;padding:24px;max-width:1800px;background:#f4f5f1;color:#19352f;font:14px/1.7 NanumSquareNeoVariable,NanumSquareNeo,sans-serif}button,input,.leaflet-container{font-family:inherit}h1{margin:0;font-size:26px}h2{font-size:18px}h3{font-size:16px}h4{margin-bottom:5px}p{margin:10px 0}a{color:#21664f}.tabs{display:flex;gap:8px;margin:18px 0}.tabs a,button{padding:9px 12px;border:1px solid #d6dfd3;border-radius:6px;background:white;color:#19352f;text-decoration:none;cursor:pointer}.tabs [aria-current],button[aria-pressed=true]{background:#21664f;color:white}button:focus-visible,a:focus-visible{outline:3px solid #dea83c}.workspace{display:grid;grid-template-columns:210px minmax(300px,1fr) 340px;gap:16px;align-items:start}.panel{padding:16px;background:white;border:1px solid #d5dfd2;border-radius:10px;min-width:0}.filters{display:grid;gap:7px}.regions{display:grid;grid-template-columns:1fr 1fr;gap:5px}.regions button{font-size:12px;padding:7px 3px}.regions button:first-child{grid-column:1/-1}#comparisonMap{height:65vh;min-height:430px;border-radius:8px}.counts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.count{background:#f0f3ed;padding:10px;border-radius:7px}.count strong{display:block;font-size:25px}.count span{font-size:11px}.muted,#selection,#sources,#mapStatus{font-size:12px;color:#617165}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;margin:10px 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}.list{margin-top:20px}.table-scroll{max-height:500px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e1e7de}th{background:#21664f;color:white;position:sticky;top:0}.address-button{border:0;background:transparent;text-align:left;padding:0;color:#21664f;text-decoration:underline}input{max-width:100%;padding:8px}#details{max-height:70vh;overflow:auto;overflow-wrap:anywhere}details{margin-top:15px}summary{cursor:pointer;font-weight:bold}#loadStatus{padding:10px 14px;background:#e9f0e5;border-radius:7px}@media(max-width:1100px){.workspace{grid-template-columns:190px 1fr}.detail-panel{grid-column:1/-1}}@media(max-width:680px){body{padding:12px}.workspace{grid-template-columns:1fr}.detail-panel{grid-column:auto}.counts{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<h1>세종시 빈집 · 두 자료를 함께 읽기</h1>
+<nav class="tabs" aria-label="조사자료 선택"><a href="./?year=2026">2026년</a><a href="./?year=2021">2021년</a><a href="./compare.html" aria-current="page">2021 ↔ 2026 비교</a></nav>
+<p>주소가 양쪽에 기록됐는지 비교합니다. <strong>계속 빈집이었는지, 새로 발생했거나 해소됐는지를 확정하는 결과는 아닙니다.</strong></p>
+<p id="loadStatus" role="status">저장자료를 확인합니다.</p><p id="sources"></p>
+<div class="workspace">
+<aside class="panel"><h2>비교 유형</h2><div class="filters"><button data-status="all" aria-pressed="true">전체 주소</button><button data-status="both" aria-pressed="false">양쪽 자료에 있음</button><button data-status="only2021" aria-pressed="false">2021년에만 있음</button><button data-status="only2026" aria-pressed="false">2026년에만 있음</button></div><h2>지역 · 복수 선택</h2><div id="regionButtons" class="regions"></div><p class="muted">모두 해제하면 세종 전체를 표시합니다.</p><button id="refreshData">저장자료 다시 읽기</button><details><summary>배경지도 연결</summary><label for="key">브이월드 인증키</label><input id="key" type="password" autocomplete="off"><button id="connect" disabled>일반지도 연결</button><p class="muted">현황판에 기억한 키가 있으면 자동 연결합니다. 여기서 입력한 키는 저장하지 않습니다.</p></details></aside>
+<main class="panel"><div class="counts"><div class="count"><span>양쪽 자료의 주소</span><strong id="bothCount">—</strong></div><div class="count"><span>2021년에만 있는 주소</span><strong id="only2021Count">—</strong></div><div class="count"><span>2026년에만 있는 주소</span><strong id="only2026Count">—</strong></div></div><p class="muted">카드: 선택 지역 기준 중복 제외 주소 수. 비교 유형 필터와 관계없이 세 분류를 함께 표시합니다.</p><p id="selection" role="status"></p><div id="comparisonMap" aria-label="연도별 주소 비교 지도"></div><div class="legend"><span><i style="background:#725bb1"></i>양쪽 자료</span><span><i style="background:#367fa5"></i>2021년만</span><span><i style="background:#dd8130"></i>2026년만</span></div><p class="muted">이 지도에서는 등급 대신 비교 유형으로 점 색을 표시합니다. 저장된 좌표만 사용하며, 좌표가 없는 주소도 아래 목록과 집계에는 포함됩니다.</p><p id="mapStatus" role="status">배경지도는 기억한 키가 있으면 연결됩니다.</p></main>
+<aside class="panel detail-panel"><h2>주소별 조사 기록</h2><div id="details">주소를 선택하세요.</div><details><summary>비교 기준</summary><p>주소 앞뒤 공백과 연속 공백만 정리한 뒤 같은 문자열을 연결합니다. 지번·도로명 변환, 필지 분할·합병, 건물 구분은 자동 판정하지 않습니다.</p><p>주소가 여러 번 기록돼도 비교 건수는 주소 하나로 세고 상세 기록은 모두 보존합니다. 서로 다른 좌표가 저장된 주소는 지도에 각각 표시합니다.</p><p>2026년 파일에는 과거 조사 기록도 포함돼 있습니다. 조사 범위·기준·기록 시점이 달라 단순 차이를 빈집 증감으로 해석할 수 없습니다.</p></details></aside></div>
+<section class="panel list"><h2>주소 비교 목록</h2><div class="table-scroll"><table><thead><tr><th>주소 · 클릭해서 상세 보기</th><th>비교 유형</th><th>2021년 기록</th><th>2026년 기록</th><th>지도 위치</th></tr></thead><tbody id="comparisonRows"></tbody></table></div></section>
+<script>const get=id=>document.getElementById(id);
+const scope='sejong-dashboard:v1:'+new URL('.',location.href).pathname;
+const labels={both:'양쪽 자료에 있음',only2021:'2021년에만 있음',only2026:'2026년에만 있음'};
+const colors={both:'#725bb1',only2021:'#367fa5',only2026:'#dd8130'};
+const addressKey=s=>String(s??'').trim().replace(/\s+/g,' ');
+let entries=[],map=null,pointLayer=null,base=null,category='all',regions=new Set(),ready=false;
+function groupAddresses(rows){
+  const result=new Map();
+  for(const row of rows){const address=addressKey(row.address);if(!address)continue;if(!result.has(address))result.set(address,[]);result.get(address).push(row);}
+  return result;
+}
+function compareRows(oldRows,newRows){
+  const old=groupAddresses(oldRows),recent=groupAddresses(newRows);
+  return [...new Set([...old.keys(),...recent.keys()])].map(address=>{
+    const a=old.get(address)||[],b=recent.get(address)||[];
+    return {address,old:a,recent:b,status:a.length&&b.length?'both':a.length?'only2021':'only2026',regions:[...new Set([...a,...b].map(r=>r.region||'지역 확인 필요'))],locations:[]};
+  }).sort((a,b)=>a.address.localeCompare(b.address,'ko',{numeric:true}));
+}
+function readSurvey(year){
+  const value=localStorage.getItem(scope+(year==='2021'?':2021':'')+':survey');
+  if(!value)throw new Error(year+'년 저장자료가 없습니다. 해당 연도 탭에서 조사 엑셀을 한 번 선택하세요.');
+  const data=JSON.parse(value);
+  if(data.version!==1||!Array.isArray(data.records)||data.records.some(r=>!r||typeof r.address!=='string'||!r.address.trim()||typeof r.region!=='string'))throw new Error(year+'년 저장자료를 읽을 수 없습니다. 해당 탭에서 원본 엑셀을 다시 선택하세요.');
+  return data;
+}
+function attachLocations(items,year,data){
+  const byAddress=new Map(items.map(e=>[e.address,e]));let rejected=0;
+  for(const p of data.records){
+    const entry=byAddress.get(addressKey(p.address));
+    if(!entry||!(year==='2021'?entry.old.length:entry.recent.length))continue;
+    if(!Number.isFinite(p.longitude)||!Number.isFinite(p.latitude)||p.longitude<127.12765872447403||p.longitude>127.4092754044858||p.latitude<36.40675835257603||p.latitude>36.73376199366809){rejected++;continue;}
+    let point=entry.locations.find(x=>x.longitude===p.longitude&&x.latitude===p.latitude);
+    if(!point){point={longitude:p.longitude,latitude:p.latitude,years:[]};entry.locations.push(point);}
+    if(!point.years.includes(year))point.years.push(year);
+  }
+  return rejected;
+}
+function readCoordinates(year,items){
+  try{
+    const raw=localStorage.getItem(scope+(year==='2021'?':2021':'')+':coordinates');
+    if(!raw)return year+'년 좌표 미저장';
+    const data=JSON.parse(raw);if(data.version!==1||!Array.isArray(data.records))throw new Error();
+    const rejected=attachLocations(items,year,data);return rejected?year+'년 잘못된 좌표 '+rejected+'건 제외':'';
+  }catch{return year+'년 좌표를 읽지 못함';}
+}
+function selectedEntries(){return entries.filter(e=>(category==='all'||e.status===category)&&(!regions.size||e.regions.some(r=>regions.has(r))));}
+function showDetail(entry){
+  const box=get('details');box.replaceChildren();
+  const title=document.createElement('h3');title.textContent=entry.address;box.append(title);
+  const badge=document.createElement('p');badge.textContent=labels[entry.status];badge.style.color=colors[entry.status];box.append(badge);
+  for(const [year,rows] of [['2021',entry.old],['2026',entry.recent]]){
+    const heading=document.createElement('h4');heading.textContent=year+'년 자료 · '+rows.length+'건';box.append(heading);
+    if(!rows.length){const p=document.createElement('p');p.textContent='이 주소와 일치하는 조사 기록이 없습니다.';box.append(p);}
+    rows.forEach((row,i)=>{const p=document.createElement('p');p.textContent=(i+1)+'. 등급: '+(row.grade||'미기재')+' / 주택유형: '+(row.type||'미기재')+' / 조사연도: '+(row.surveyYear||'미기재');box.append(p);});
+  }
+  const note=document.createElement('p');note.className='muted';note.textContent='같은 주소라도 같은 건물·동일 조사대상인지는 원자료로 확인해야 합니다. 등급 표기는 당시 원본 그대로입니다.';box.append(note);
+  if(entry.locations.length>1){const p=document.createElement('p');p.textContent='저장된 좌표가 '+entry.locations.length+'곳입니다. 지도에서 위치 차이를 확인하세요.';box.append(p);}
+}
+function drawPoints(shown){
+  if(!pointLayer)return;pointLayer.clearLayers();
+  for(const entry of shown)for(const point of entry.locations){
+    const marker=L.circleMarker([point.latitude,point.longitude],{radius:4,weight:1,color:'#fff',fillColor:colors[entry.status],fillOpacity:1});
+    const tip=document.createElement('span');tip.textContent=entry.address+' · '+labels[entry.status]+' · '+point.years.join('·')+'년 좌표';
+    marker.bindTooltip(tip).on('click',()=>showDetail(entry)).addTo(pointLayer);
+  }
+}
+function render(){
+  if(!ready)return;
+  const selected=selectedEntries(),body=get('comparisonRows');body.replaceChildren();
+  const regional=entries.filter(e=>!regions.size||e.regions.some(r=>regions.has(r)));
+  for(const status of Object.keys(labels))get(status+'Count').textContent=regional.filter(e=>e.status===status).length.toLocaleString();
+  const located=selected.filter(e=>e.locations.length).length;
+  get('selection').textContent=(regions.size?[...regions].join(', '):'세종 전체')+' · '+(category==='all'?'모든 비교 유형':labels[category])+' · 중복 제외 주소 '+selected.length+'개 / 좌표 있는 주소 '+located+'개 / 좌표 없는 주소 '+(selected.length-located)+'개';
+  for(const entry of selected){
+    const tr=document.createElement('tr'),address=document.createElement('td'),button=document.createElement('button');button.className='address-button';button.textContent=entry.address;
+    button.addEventListener('click',()=>{showDetail(entry);if(map&&entry.locations.length)map.fitBounds(entry.locations.map(p=>[p.latitude,p.longitude]),{maxZoom:17,padding:[35,35]});});address.append(button);tr.append(address);
+    for(const text of [labels[entry.status],entry.old.length+'건',entry.recent.length+'건',entry.locations.length?'좌표 있음':'좌표 없음']){const td=document.createElement('td');td.textContent=text;tr.append(td);}body.append(tr);
+  }
+  if(!selected.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='선택 조건에 해당하는 주소가 없습니다.';tr.append(td);body.append(tr);}
+  get('details').textContent='지도 점이나 아래 목록의 주소를 누르면 두 자료의 기록을 나란히 확인할 수 있습니다.';
+  drawPoints(selected);
+}
+function loadComparison(){
+  ready=false;entries=[];if(pointLayer)pointLayer.clearLayers();get('comparisonRows').replaceChildren();get('regionButtons').replaceChildren();get('details').textContent='';
+  for(const status of Object.keys(labels))get(status+'Count').textContent='—';get('selection').textContent='';
+  try{
+    const old=readSurvey('2021'),recent=readSurvey('2026');entries=compareRows(old.records,recent.records);
+    const notes=[readCoordinates('2021',entries),readCoordinates('2026',entries)].filter(Boolean);
+    get('loadStatus').textContent='2021년 '+old.records.length+'건 / 2026년 '+recent.records.length+'건을 주소 기준으로 비교했습니다.'+(notes.length?' '+notes.join(' · '):'');
+    get('sources').textContent='사용 자료: '+(old.name||'2021년 자료')+' / '+(recent.name||'2026년 자료');
+    regions.clear();const names=[...new Set(entries.flatMap(e=>e.regions))].sort((a,b)=>a==='조치원읍'?-1:b==='조치원읍'?1:a.localeCompare(b,'ko'));
+    for(const name of ['',...names]){const b=document.createElement('button');b.textContent=name||'세종 전체';b.dataset.region=name;b.setAttribute('aria-pressed',String(!name));b.onclick=()=>{if(!name)regions.clear();else if(regions.has(name))regions.delete(name);else regions.add(name);for(const btn of get('regionButtons').children)btn.setAttribute('aria-pressed',String(btn.dataset.region?regions.has(btn.dataset.region):!regions.size));render();};get('regionButtons').append(b);}
+    ready=true;render();
+  }catch(error){get('loadStatus').textContent=error instanceof SyntaxError?'저장자료 형식을 읽지 못했습니다. 각 연도 탭에서 엑셀을 다시 선택하세요.':error.message;get('sources').textContent='두 연도 자료가 모두 있어야 비교할 수 있습니다.';}
+}
+function initializeComparisonMap(){
+  if(typeof L==='undefined'||map)return;
+  map=L.map('comparisonMap',{minZoom:7,maxZoom:19}).setView([36.57,127.27],10);pointLayer=L.layerGroup().addTo(map);L.control.scale({imperial:false}).addTo(map);
+  if(ready)drawPoints(selectedEntries());get('connect').disabled=false;
+  try{const key=localStorage.getItem(scope+':vworld-key');if(key){get('key').value=key;connectBase();}}catch{get('mapStatus').textContent='기억한 키를 읽지 못했습니다. 직접 입력해 연결하세요.';}
+}
+function connectBase(){
+  const key=get('key').value.trim();if(!map)return;if(!/^[a-zA-Z0-9-]+$/.test(key)){get('mapStatus').textContent='브이월드 인증키를 입력하세요.';return;}
+  if(base){base.off();map.removeLayer(base);}let errors=0;
+  base=L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/'+encodeURIComponent(key)+'/Base/{z}/{y}/{x}.png',{minZoom:7,maxZoom:19,noWrap:true,attribution:'© <a href="https://www.vworld.kr/">브이월드</a>'});
+  base.on('loading',()=>{errors=0;get('mapStatus').textContent='배경지도를 불러오는 중입니다.';});base.on('tileerror',()=>errors++);base.on('load',()=>get('mapStatus').textContent=errors?'배경지도를 모두 불러오지 못했습니다. 키·서비스 URL·네트워크를 확인하세요.':'브이월드 일반지도 연결됨');base.addTo(map);get('key').value='';
+}
+for(const b of document.querySelectorAll('[data-status]'))b.addEventListener('click',()=>{category=b.dataset.status;for(const x of document.querySelectorAll('[data-status]'))x.setAttribute('aria-pressed',String(x===b));render();});
+get('refreshData').addEventListener('click',loadComparison);get('connect').addEventListener('click',connectBase);
+window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith(scope))get('loadStatus').textContent='다른 화면에서 저장자료가 바뀌었습니다. ‘저장자료 다시 읽기’를 눌러 비교를 갱신하세요.';});
+loadComparison();
+</script><script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onload="initializeComparisonMap()" onerror="document.getElementById('mapStatus').textContent='지도 도구를 불러오지 못했습니다. 비교표는 그대로 사용할 수 있습니다.';"></script></body></html>

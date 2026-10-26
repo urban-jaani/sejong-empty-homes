@@ -69,7 +69,7 @@
     .stats-note, #statsReload { font-size:13px; color:#526b5a; }
     @media(max-width:760px){.stats-grid{grid-template-columns:1fr;}}
   
-.background-choice { margin:10px 0; font-size:14px; } .background-choice select { width:auto; padding:6px; } #sejongMap { background:#fff; } #sejongMap.white-background .leaflet-tile-pane { display:none; }
+.background-choice { margin:10px 0; font-size:14px; } .background-choice select { width:auto; padding:6px; } #sejongMap { background:#fff; } #sejongMap.gray-background .leaflet-tile-pane { filter:grayscale(1) brightness(1.08); }
 </style>
   <style>
     body {
@@ -334,7 +334,7 @@ summary { cursor:pointer; font-weight:bold; }
       <span>휠로 확대·축소 · 드래그로 이동</span>
     </div>
     <div class="map-stage">
-      <div class="background-choice"><label for="backgroundChoice">지도 배경 </label><select id="backgroundChoice"><option value="normal">일반지도</option><option value="white">백색지도 (경계·점만)</option></select></div><div id="sejongMap" aria-label="세종시 빈집 지도"></div>
+      <div class="background-choice"><label for="backgroundChoice">지도 배경 </label><select id="backgroundChoice"><option value="normal">일반지도</option><option value="gray">밝은 회색 지도</option></select></div><div id="sejongMap" aria-label="세종시 빈집 지도"></div>
       
     </div>
     <div class="map-legend" aria-label="지역별 조사 기록 수 범례">
@@ -1201,8 +1201,8 @@ selectCategory('all');
 
 </script><script>
 (function(){const choice=document.getElementById('backgroundChoice'),canvas=document.getElementById('sejongMap'),key='sejong-dashboard:v1:'+new URL('.',location.href).pathname+':background-choice';
-function apply(){canvas.classList.toggle('white-background',choice.value==='white');}
-try{if(localStorage.getItem(key)==='white')choice.value='white';}catch{}apply();
+function apply(){canvas.classList.toggle('gray-background',choice.value==='gray');}
+try{if(['white','gray'].includes(localStorage.getItem(key)))choice.value='gray';}catch{}apply();
 choice.addEventListener('change',()=>{apply();try{localStorage.setItem(key,choice.value);}catch{}});
-window.addEventListener('storage',event=>{if(event.key===key){choice.value=event.newValue==='white'?'white':'normal';apply();}});
+window.addEventListener('storage',event=>{if(event.key===key){choice.value=['white','gray'].includes(event.newValue)?'gray':'normal';apply();}});
 })();</script></body></html>

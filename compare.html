@@ -1,9 +1,17 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>세종 빈집 · 2021년과 2026년 비교</title>
+<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>세종시 빈집 현황판</title>
 <link rel="stylesheet" href="https://hangeul.pstatic.net/hangeul_static/css/nanum-square-neo.css"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 *{box-sizing:border-box}body{margin:0 auto;padding:24px;max-width:1800px;background:#f4f5f1;color:#19352f;font:14px/1.7 NanumSquareNeoVariable,NanumSquareNeo,sans-serif}button,input,.leaflet-container{font-family:inherit}h1{margin:0;font-size:26px}h2{font-size:18px}h3{font-size:16px}h4{margin-bottom:5px}p{margin:10px 0}a{color:#21664f}.tabs{display:flex;gap:8px;margin:18px 0}.tabs a,button{padding:9px 12px;border:1px solid #d6dfd3;border-radius:6px;background:white;color:#19352f;text-decoration:none;cursor:pointer}.tabs [aria-current],button[aria-pressed=true]{background:#21664f;color:white}button:focus-visible,a:focus-visible{outline:3px solid #dea83c}.workspace{display:grid;grid-template-columns:210px minmax(300px,1fr) 340px;gap:16px;align-items:start}.panel{padding:16px;background:white;border:1px solid #d5dfd2;border-radius:10px;min-width:0}.filters{display:grid;gap:7px}.regions{display:grid;grid-template-columns:1fr 1fr;gap:5px}.regions button{font-size:12px;padding:7px 3px}.regions button:first-child{grid-column:1/-1}#comparisonMap{height:65vh;min-height:430px;border-radius:8px}.counts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.count{background:#f0f3ed;padding:10px;border-radius:7px}.count strong{display:block;font-size:25px}.count span{font-size:11px}.muted,#selection,#sources,#mapStatus{font-size:12px;color:#617165}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;margin:10px 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}.list{margin-top:20px}.table-scroll{max-height:500px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e1e7de}th{background:#21664f;color:white;position:sticky;top:0}.address-button{border:0;background:transparent;text-align:left;padding:0;color:#21664f;text-decoration:underline}input{max-width:100%;padding:8px}#details{max-height:70vh;overflow:auto;overflow-wrap:anywhere}details{margin-top:15px}summary{cursor:pointer;font-weight:bold}#loadStatus{padding:10px 14px;background:#e9f0e5;border-radius:7px}@media(max-width:1100px){.workspace{grid-template-columns:190px 1fr}.detail-panel{grid-column:1/-1}}@media(max-width:680px){body{padding:12px}.workspace{grid-template-columns:1fr}.detail-panel{grid-column:auto}.counts{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}}
+
+/* 조사 연도 화면과 동일한 제목 및 탐색 탭 */
+body { padding:22px; }
+body>h1 { margin:0; font-size:27px; color:#21664f; line-height:1.65; }
+.tabs { display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid #ccd9cf; padding:0 0 10px; margin:18px 0 8px; }
+.tabs a { padding:10px 22px; border:0; border-radius:7px; background:#e8eee6; text-decoration:none; color:#365847; font-size:16px; line-height:1.65; font-weight:700; }
+.tabs a[aria-current=page] { background:#21664f; color:white; }
+@media(max-width:680px){body{padding:12px;}}
 </style></head><body>
-<h1>세종시 빈집 · 두 자료를 함께 읽기</h1>
+<h1>세종시 빈집 현황판</h1>
 <nav class="tabs" aria-label="조사자료 선택"><a href="./?year=2026">2026년</a><a href="./?year=2021">2021년</a><a href="./compare.html" aria-current="page">2021 ↔ 2026 비교</a><a href="./demolition.html">철거 실적</a></nav>
 <p>주소가 양쪽에 기록됐는지 비교합니다. <strong>계속 빈집이었는지, 새로 발생했거나 해소됐는지를 확정하는 결과는 아닙니다.</strong></p>
 <p id="loadStatus" role="status">저장자료를 확인합니다.</p><p id="sources"></p>

@@ -19,7 +19,10 @@ body>h1 { margin:0; font-size:27px; color:#21664f; line-height:1.65; }
 @media(max-width:700px){#comparisonMap{height:480px;}}
 
 .map-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;font-size:12px}.map-toolbar button{padding:6px 10px;background:white;border:1px solid #b8cbb9;border-radius:5px;color:#21664f}
-</style></head><body>
+</style><link rel="stylesheet" href="./report-details.css">
+<script defer src="./pdf-lib.min.js"></script>
+<script defer src="./report-details.js"></script>
+</head><body>
 <h1>세종시 빈집 현황판</h1>
 <p class="dashboard-subtitle">세종시 빈집은 어디에 많을까?</p>
 <nav class="tabs" aria-label="조사자료 선택"><a href="./?year=2026">2026년</a><a href="./?year=2021">2021년</a><a href="./compare.html" aria-current="page">2021 ↔ 2026 비교</a><a href="./demolition.html">철거 실적</a></nav>
@@ -87,6 +90,7 @@ function showDetail(entry){
     if(!rows.length){const p=document.createElement('p');p.textContent='이 주소와 일치하는 조사 기록이 없습니다.';box.append(p);}
     rows.forEach((row,i)=>{const p=document.createElement('p');p.textContent=(i+1)+'. 등급: '+(row.grade||'미기재')+' / 주택유형: '+(row.type||'미기재')+' / 조사연도: '+(row.surveyYear||'미기재');box.append(p);});
   }
+  if(window.VacancyReports)window.VacancyReports.mount(box,[entry.address]);
   const note=document.createElement('p');note.className='muted';note.textContent='같은 주소라도 같은 건물·동일 조사대상인지는 원자료로 확인해야 합니다. 등급 표기는 당시 원본 그대로입니다.';box.append(note);
   if(entry.locations.length>1){const p=document.createElement('p');p.textContent='저장된 좌표가 '+entry.locations.length+'곳입니다. 지도에서 위치 차이를 확인하세요.';box.append(p);}
 }

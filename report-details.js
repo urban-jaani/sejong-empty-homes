@@ -58,8 +58,9 @@ function renderLinked(host){
  const matches=lookupRecords(dataset,addresses);
  if(!matches.length){host.append(el('p','이 주소와 일치하는 2025년 조사표가 없습니다. 상세대장 검색으로 주소 표기를 확인하세요.'));return;}
  const duplicate=addresses.some(a=>lookupRecords(dataset,[a]).length>1);
- host.append(el('p',duplicate?'같은 주소의 조사표가 여러 장입니다. 고유번호·면적·구조를 대조한 뒤 해당 보고서를 선택하세요.':'주소가 일치하는 조사표입니다. 동일 건물인지 고유번호·면적·구조로 확인하세요.','report-note'));
- for(const r of matches)host.append(recordCard(r));
+if (duplicate) {
+  host.append(el('p', '같은 주소의 조사표가 여러 장입니다. 고유번호·면적·구조를 대조한 뒤 해당 보고서를 선택하세요.', 'report-note'));
+} for(const r of matches)host.append(recordCard(r));
 }
 function recordCard(r){
  const card=el('details',undefined,'report-record');card.open=true;

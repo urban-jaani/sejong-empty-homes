@@ -965,10 +965,7 @@ function createHouseDetails(points) {
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
   const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&(matchesRegion(r.region)));
   const heading=document.createElement('strong');heading.textContent='빈집 조사 상세 · '+matches.length+'건';box.append(heading);
-  const gradeStyle=pointGradeStyle(points), gradeNote=document.createElement('p');
-  gradeNote.textContent='점 색상: '+gradeStyle.label+' · 원본 등급: '+gradeStyle.original+(gradeStyle.mixed?' · 같은 위치의 여러 등급 중 숫자가 가장 높은 등급 색을 표시합니다.':'');
-  box.append(gradeNote);
-  const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
+   const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
   const area=value=>{const text=display(value);return text==='미기재'?(activeYear==='2021'?'원본 자료 없음':text):text+' ㎡';};
   matches.forEach((record,index)=>{
     const section=document.createElement('section');

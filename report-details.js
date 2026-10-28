@@ -8,6 +8,8 @@ function validateDataset(input){
  if(!input||input.format!=='sejong-vacancy-details'||input.version!==1||!Array.isArray(input.records)||!input.records.length||input.records.length>10000)throw new Error('상세 조사대장 JSON 형식이 아닙니다. 제공된 파일을 선택하세요.');
  const src=input.source;
  if(!src||!Number.isInteger(src.pageCount)||src.pageCount<2||src.pageCount>20000||!Number.isInteger(src.byteLength)||src.byteLength<1||!/^[a-f0-9]{64}$/.test(src.sha256)||typeof src.name!=='string'||!Number.isInteger(src.year))throw new Error('원본 PDF 확인 정보가 올바르지 않습니다.');
+ const fs=input.fieldSource;
+ if(fs&&(!Number.isInteger(fs.pageCount)||fs.pageCount<1||!Number.isInteger(fs.byteLength)||fs.byteLength<1||!/^[a-f0-9]{64}$/.test(fs.sha256)))throw new Error('현장조사서 확인 정보가 올바르지 않습니다.');
  const ids=new Set(),pages=new Set();
  const records=input.records.map(row=>{
   if(!row||!Number.isInteger(row.page)||row.page<2||row.page>src.pageCount||row.reportYear!==src.year)throw new Error('보고서 페이지 또는 조사연도가 올바르지 않습니다.');
@@ -16,9 +18,13 @@ function validateDataset(input){
   if(!clean.id.trim()||!clean.address.trim()||ids.has(clean.id)||pages.has(clean.page))throw new Error('고유번호 또는 페이지가 중복되거나 비어 있습니다.');
   ids.add(clean.id);pages.add(clean.page);
   for(const k of numberFields){if(row[k]!==null&&(!Number.isFinite(row[k])||row[k]<0))throw new Error('면적 형식을 확인하세요.');clean[k]=row[k];}
+  if(row.fieldSection){const f=row.fieldSection;
+   if(!fs||!Number.isInteger(f.page)||f.page<1||f.page>fs.pageCount||!Array.isArray(f.box)||f.box.length!==4||!f.box.every(Number.isFinite)||f.box[0]<0||f.box[1]<0||f.box[2]<=f.box[0]||f.box[3]<=f.box[1]||f.box[2]>2000||f.box[3]>2000)throw new Error('판별기준 영역 정보가 올바르지 않습니다.');
+   clean.fieldSection={page:f.page,box:[...f.box]};
+  }
   return clean;
  });
- return {format:input.format,version:1,source:{name:src.name.slice(0,200),year:src.year,pageCount:src.pageCount,byteLength:src.byteLength,sha256:src.sha256},records};
+ return {format:input.format,version:1,...(fs?{fieldSource:{pageCount:fs.pageCount,byteLength:fs.byteLength,sha256:fs.sha256}}:{}),source:{name:src.name.slice(0,200),year:src.year,pageCount:src.pageCount,byteLength:src.byteLength,sha256:src.sha256},records};
 }
 function lookupRecords(dataset,addresses){
  const keys=new Set(addresses.map(normalizeAddress).filter(Boolean));
@@ -39,7 +45,14 @@ async function extractPage(sourceDoc,page,PDFLib){
  copied.node.delete(PDFLib.PDFName.of('Annots'));doc.addPage(copied);doc.setTitle('개별 빈집 조사보고서');
  return doc.save();
 }
-const api={validateDataset,normalizeAddress,lookupRecords,verifyPdfBytes,extractPage};
+async function extractCriteria(sourceDoc,section,PDFLib){
+ const {page,box}=section;if(!Number.isInteger(page)||page<1||page>sourceDoc.getPageCount())throw new Error('현장조사서 페이지 오류');
+ const original=sourceDoc.getPage(page-1);const [left,bottom,right,top]=box;
+ if(left<0||bottom<0||right>original.getWidth()+1||top>original.getHeight()+1||right<=left||top<=bottom)throw new Error('현장조사서 영역 오류');
+ const doc=await PDFLib.PDFDocument.create();const embedded=await doc.embedPage(original,{left,bottom,right,top});
+ const target=doc.addPage([right-left,top-bottom]);target.drawPage(embedded);return doc.save();
+}
+const api={extractCriteria,validateDataset,normalizeAddress,lookupRecords,verifyPdfBytes,extractPage};
 if(typeof module==='object'&&module.exports)module.exports=api;
 if(!root.document)return;
 const doc=root.document;
@@ -47,7 +60,7 @@ const storeKey='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+'
 let metadataRequest=0;
 let dataset=null,sourcePdf=null,pdfLoading=false,selectionSerial=0,viewerUrl=null,panel=null,statusEl=null,pdfStatusEl=null,searchDialog=null,viewerDialog=null;
 let rememberPdf=null,pdfFileMemory=null,cacheQueue=Promise.resolve();
-function pdfCache(action,value){
+function pdfCache(action,value,key=storeKey){
  const run=()=>new Promise((resolve,reject)=>{
   if(!root.indexedDB){reject(new Error('브라우저 PDF 저장 기능을 사용할 수 없습니다.'));return;}
   const request=root.indexedDB.open('sejong-local-report-files',1);
@@ -57,7 +70,7 @@ function pdfCache(action,value){
   request.onsuccess=()=>{
    const db=request.result;let result;
    try{const tx=db.transaction('pdfs',action==='get'?'readonly':'readwrite'),store=tx.objectStore('pdfs');
-    const op=action==='get'?store.get(storeKey):action==='put'?store.put(value,storeKey):store.delete(storeKey);
+    const op=action==='get'?store.get(key):action==='put'?store.put(value,key):store.delete(key);
     op.onsuccess=()=>{result=op.result;};
     tx.oncomplete=()=>{db.close();resolve(result);};
     tx.onerror=tx.onabort=()=>{db.close();reject(new Error('PDF를 저장하지 못했습니다. 저장 공간과 브라우저 설정을 확인하세요.'));};
@@ -80,10 +93,37 @@ async function restorePdf(){
   if(cached?.sha256===hash&&cached.file&&typeof cached.file.arrayBuffer==='function'){rememberPdf.checked=true;await importPdf(cached.file,true);}
  }catch(e){if(serial===selectionSerial)pdfStatusEl.textContent='저장 PDF 복원 불가 · 원본을 직접 선택하면 사용할 수 있습니다.';}
 }
+let fieldPdf=null,fieldFile=null,fieldHash=null,fieldSerial=0,fieldStatus=null,fieldRemember=null,fieldUrl=null;
+async function loadField(file,restoring=false){
+ if(!file)return;if(!dataset?.fieldSource){fieldStatus.textContent='현장조사서 연결 정보가 포함된 최신 상세대장 JSON을 먼저 선택하세요.';return;}
+ const serial=++fieldSerial,expected=dataset.fieldSource;fieldPdf=null;fieldFile=null;fieldHash=null;fieldStatus.textContent='현장조사서 확인 중…';
+ try{const bytes=await file.arrayBuffer();await verifyPdfBytes(bytes,expected,root.crypto);
+  const parsed=await root.PDFLib.PDFDocument.load(bytes,{updateMetadata:false});if(parsed.getPageCount()!==expected.pageCount)throw new Error('현장조사서 페이지 수 불일치');
+  if(serial!==fieldSerial||dataset?.fieldSource?.sha256!==expected.sha256)return;
+  fieldPdf=parsed;fieldFile=file;fieldHash=expected.sha256;fieldStatus.textContent='현장조사서 연결 완료 · 보고서를 다시 열면 판별기준이 아래에 표시됩니다.';
+  if(!restoring&&fieldRemember.checked)await saveField();
+ }catch(e){if(serial===fieldSerial)fieldStatus.textContent=e.message;}
+}
+async function saveField(){if(!fieldFile||!fieldRemember.checked)return;try{await pdfCache('put',{file:fieldFile,sha256:fieldHash},storeKey+':field');fieldStatus.textContent='현장조사서를 이 브라우저에 저장했습니다.';}catch{fieldStatus.textContent='저장 공간 부족 또는 저장 불가 · 현재 화면에서는 사용할 수 있습니다.';}}
+async function restoreField(){
+ const serial=fieldSerial,hash=dataset?.fieldSource?.sha256;if(!hash)return;
+ try{const saved=await pdfCache('get',null,storeKey+':field');if(serial!==fieldSerial||dataset?.fieldSource?.sha256!==hash)return;
+ if(saved?.sha256===hash&&saved.file){fieldRemember.checked=true;await loadField(saved.file,true);}}catch{fieldStatus.textContent='저장 현장조사서를 불러오지 못했습니다. 다시 선택하세요.';}
+}
+async function appendCriteria(record,host){
+ host.append(el('h3','2. 빈집판별 기준'));
+ if(!record.fieldSection){host.append(el('p','고유번호와 주소가 일치하는 현장조사서가 연결되지 않았습니다.'));return;}
+ if(!fieldPdf||fieldHash!==dataset?.fieldSource?.sha256){host.append(el('p','왼쪽 상세 조사보고서에서 현장조사서 PDF를 선택하세요.'));return;}
+ const serial=selectionSerial,fieldVersion=fieldSerial;
+ try{const bytes=await extractCriteria(fieldPdf,record.fieldSection,root.PDFLib);if(serial!==selectionSerial||fieldVersion!==fieldSerial||!host.open)return;
+ fieldUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+ const frame=el('iframe');frame.title='빈집판별 기준';frame.src=fieldUrl+'#view=FitH';host.append(frame);
+ }catch{host.append(el('p','판별기준을 표시하지 못했습니다. 현장조사서를 다시 선택하세요.'));}
+}
 function el(tag,text,className){const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;if(className)e.className=className;return e;}
 function textValue(value){return value===null||value===undefined||value===''?'미기재':String(value);}
 function labelInput(text,type,accept){const label=el('label',text),input=el('input');input.type=type;input.accept=accept;label.append(input);return [label,input];}
-function closeViewer(){if(viewerDialog){viewerDialog.close();viewerDialog.replaceChildren();}if(viewerUrl){URL.revokeObjectURL(viewerUrl);viewerUrl=null;}}
+function closeViewer(){if(fieldUrl){URL.revokeObjectURL(fieldUrl);fieldUrl=null;}if(viewerDialog){viewerDialog.close();viewerDialog.replaceChildren();}if(viewerUrl){URL.revokeObjectURL(viewerUrl);viewerUrl=null;}}
 function mount(host,addresses){const target=el('section',undefined,'report-detail-card');target.dataset.reportAddresses=JSON.stringify([...new Set(addresses.filter(a=>typeof a==='string'&&a.trim()))]);host.append(target);renderLinked(target);return target;}
 function refresh(){for(const node of doc.querySelectorAll('[data-report-addresses]'))renderLinked(node);if(searchDialog?.open)renderSearch();}
 function renderLinked(host){
@@ -122,7 +162,7 @@ async function openRecord(record){
   const link=el('a','PDF 열기 / 저장');link.href=viewerUrl;link.target='_blank';link.rel='noopener';
   const download=el('a','한 장 다운로드');download.href=viewerUrl;download.download='빈집조사_'+record.id+'.pdf';
   const frame=el('iframe');frame.title='개별 조사보고서';frame.src=viewerUrl+'#page=1&view=FitH';
-  viewerDialog.append(link,doc.createTextNode(' · '),download,frame);
+  viewerDialog.append(link,doc.createTextNode(' · '),download,frame);await appendCriteria(record,viewerDialog);
  }catch{info.textContent='이 페이지를 PDF로 준비하지 못했습니다. 원본 파일과 PDF 도구를 확인하세요.';}
 }
 function renderSearch(){
@@ -145,7 +185,7 @@ async function importMetadata(file){
   selectionSerial++;sourcePdf=null;pdfFileMemory=null;pdfLoading=false;closeViewer();dataset=clean;
   pdfStatusEl.textContent='원본 PDF를 선택하거나 저장된 PDF 복원을 기다려 주세요.';
   let saved=true;try{root.localStorage.setItem(storeKey,JSON.stringify(clean));}catch{saved=false;}
-  setStatus(clean.source.year+'년 상세조사 '+clean.records.length+'건 (빈집미해당 포함) · '+(saved?'이 브라우저에 저장됨':'저장 공간 부족: 현재 화면에서만 사용'));refresh();await restorePdf();
+  setStatus(clean.source.year+'년 상세조사 '+clean.records.length+'건 (빈집미해당 포함) · '+(saved?'이 브라우저에 저장됨':'저장 공간 부족: 현재 화면에서만 사용'));refresh();await restorePdf();await restoreField();
  }catch(error){if(request!==metadataRequest)return;setStatus(error instanceof SyntaxError?'JSON 파일을 읽지 못했습니다. 기존 상세대장은 유지됩니다.':error.message+' 기존 상세대장은 유지됩니다.');}
 }
 async function importPdf(file,restoring=false){
@@ -186,9 +226,15 @@ function init(){
   metadataRequest++;selectionSerial++;dataset=null;sourcePdf=null;pdfFileMemory=null;pdfLoading=false;closeViewer();jsonInput.value='';pdfInput.value='';setStatus('이 브라우저의 상세대장 기억을 해제했습니다. 원본 파일은 그대로 있습니다.');pdfStatusEl.textContent='PDF 선택 해제됨';rememberPdf.checked=false;refresh();try{await pdfCache('delete');}catch(e){pdfStatusEl.textContent=e.message;}
  };
  panel.append(jsonLabel,statusEl,pdfLabel,rememberLabel,el('p','개인정보가 포함된 원본을 이 브라우저에 저장합니다. 공용 컴퓨터에서는 체크하지 마세요.','report-note'),pdfStatusEl,forgetPdf,search,forget,el('p','주소·건물정보가 포함된 상세대장과 원본 PDF는 공개 GitHub에 올리지 마세요.','report-note'));host.append(panel);
+ const [fieldLabel,fieldInput]=labelInput('현장조사서 PDF 선택 (2. 현장조사서.pdf)','file','.pdf');fieldInput.onchange=()=>loadField(fieldInput.files[0]);
+ fieldStatus=el('p','판별기준을 붙이려면 최신 상세대장과 현장조사서를 선택하세요.','report-note');
+ fieldRemember=el('input');fieldRemember.type='checkbox';const fl=el('label');fl.append(fieldRemember,doc.createTextNode(' 현장조사서도 이 브라우저에 기억하기'));
+ fieldRemember.onchange=async()=>{if(fieldRemember.checked)await saveField();else{try{await pdfCache('delete',null,storeKey+':field');fieldStatus.textContent='저장 현장조사서를 삭제했습니다.';}catch{fieldStatus.textContent='저장본 삭제 실패 · 브라우저 설정을 확인하세요.';}}};
+ const removeField=el('button','저장 현장조사서 지우기');removeField.type='button';removeField.onclick=async()=>{fieldSerial++;fieldPdf=null;fieldFile=null;fieldHash=null;fieldRemember.checked=false;closeViewer();fieldInput.value='';try{await pdfCache('delete',null,storeKey+':field');fieldStatus.textContent='현장조사서 저장본을 지웠습니다.';}catch{fieldStatus.textContent='저장본 삭제 실패';}};
+ panel.append(fieldLabel,fl,fieldStatus,removeField);
  try{const raw=root.localStorage.getItem(storeKey);if(raw){dataset=validateDataset(JSON.parse(raw));setStatus(dataset.source.year+'년 상세조사 '+dataset.records.length+'건 (빈집미해당 포함) · 저장자료 복원');}}catch{setStatus('저장된 상세대장을 읽지 못했습니다. JSON 파일을 다시 선택하세요.');}
- refresh();restorePdf();
- root.addEventListener('storage',e=>{if(e.key===storeKey){try{dataset=e.newValue?validateDataset(JSON.parse(e.newValue)):null;metadataRequest++;selectionSerial++;pdfLoading=false;sourcePdf=null;closeViewer();setStatus(dataset?'다른 탭의 상세대장 반영 · '+dataset.records.length+'건':'상세대장 기억이 해제됐습니다.');pdfFileMemory=null;pdfStatusEl.textContent='저장 PDF를 확인합니다.';refresh();restorePdf();}catch{setStatus('변경된 상세대장을 읽지 못했습니다.');}}});
+ refresh();restorePdf();restoreField();
+ root.addEventListener('storage',e=>{if(e.key===storeKey){try{dataset=e.newValue?validateDataset(JSON.parse(e.newValue)):null;metadataRequest++;selectionSerial++;pdfLoading=false;sourcePdf=null;closeViewer();setStatus(dataset?'다른 탭의 상세대장 반영 · '+dataset.records.length+'건':'상세대장 기억이 해제됐습니다.');pdfFileMemory=null;pdfStatusEl.textContent='저장 PDF를 확인합니다.';refresh();restorePdf();restoreField();}catch{setStatus('변경된 상세대장을 읽지 못했습니다.');}}});
 }
 root.VacancyReports={...api,mount};
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();

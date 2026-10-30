@@ -20,3 +20,14 @@ body.layout-shell .dashboard-grid,body.layout-shell .workspace,body.layout-shell
 .layout-list{width:33.333%}
 .layout-list .list-panel{overflow-x:auto}
 body.layout-shell .layout-list>.layout-list-title{font-size:13px;font-weight:600;margin:0 0 10px}
+
+/* Compact candidate screening in the left conditions column. */
+.candidate-filter>h3{display:none}
+.candidate-filter select{display:block;width:100%;max-width:100%;margin:7px 0;padding:5px}
+.candidate-range{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.candidate-range label{display:block;font-size:11px;color:#607168}
+.candidate-range input{display:block;width:100%;min-width:0;padding:5px}
+.candidate-filter>label{display:block;margin-top:12px;font-weight:600}
+.candidate-filter>label input[type=checkbox]{margin-left:8px}
+.candidate-result{padding:8px;background:#edf3ee;color:#21664f;font-weight:600;border-radius:5px}
+.candidate-filter>details{font-size:11px;color:#607168;margin-top:8px}

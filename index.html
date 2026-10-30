@@ -714,6 +714,7 @@ function renderResults() {
     tr.append(nameCell, countCell, chartCell);
     regionTable.append(tr);
   }
+  window.VacancyReuseFilter?.onResults();
   window.VacancyLayout?.onResults();
 }
 
@@ -1031,7 +1032,7 @@ function renderReuseDetails(points){
  });
 }
 
-window.VacancySpatialBridge={visibleRecords(){return allRecords.filter(r=>matchesGrade(r)&&matchesRegion(r.region));},refreshView(clear=false){if(clear){window.dispatchEvent(new CustomEvent('vacancy-selection-cleared'));document.getElementById('reuseDetails').textContent='조건이 바뀌었습니다. 지도에서 빈집을 선택하세요.';document.getElementById('pointDetails').textContent='지도에서 빈집을 선택하세요.';if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}}renderResults();},records(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));return allRecords.map(r=>({...r,longitude:coords.get(normalizeAddress(r.address))?.longitude,latitude:coords.get(normalizeAddress(r.address))?.latitude}));},targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
+window.VacancySpatialBridge={visibleRecords(){return this.records().filter(r=>matchesGrade(r)&&matchesRegion(r.region));},refreshView(clear=false){if(clear){window.dispatchEvent(new CustomEvent('vacancy-selection-cleared'));document.getElementById('reuseDetails').textContent='조건이 바뀌었습니다. 지도에서 빈집을 선택하세요.';document.getElementById('pointDetails').textContent='지도에서 빈집을 선택하세요.';if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}}renderResults();},records(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));return allRecords.map(r=>({...r,longitude:coords.get(normalizeAddress(r.address))?.longitude,latitude:coords.get(normalizeAddress(r.address))?.latitude}));},targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
 let spatialHighlight=null;
 window.addEventListener('vacancy-spatial-highlight',event=>{if(!liveMap||!window.L)return;if(spatialHighlight)liveMap.removeLayer(spatialHighlight);spatialHighlight=L.featureGroup().addTo(liveMap);for(const row of event.detail){L.geoJSON({type:'Feature',properties:{},geometry:row.geometry},{interactive:false,style:{color:row.kind==='parcel'?'#21664f':'#7e42a8',weight:2,fillOpacity:0.12}}).addTo(spatialHighlight);}if(spatialHighlight.getLayers().length)liveMap.fitBounds(spatialHighlight.getBounds(),{padding:[40,40],maxZoom:18});});
 window.addEventListener('vacancy-spatial-focus',event=>{

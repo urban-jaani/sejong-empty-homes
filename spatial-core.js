@@ -78,12 +78,14 @@ function reviewSummary(res,target,year=new Date().getFullYear()){
  return rows;
 }
 
-function evaluateReviewFilter(res,target,options,year=new Date().getFullYear()){
- const tests=[],known=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&String(v)!=='미기재';
+function evaluateReviewFilter(res,target,options,year=new Date().getFullYear(),fieldRecords=[]){
+ const tests=[],known=v=>v!==null&&v!==undefined&&!['','미기재','미제공','자료 없음','원본 자료 없음','-'].includes(String(v).trim());
  const value=(key,fallback)=>{for(const type of ['register','building'])if(res[type].status==='single'&&known(res[type].rows[0][key]))return res[type].rows[0][key];return target[fallback||key];};
- if(options.ageEnabled){const years=age(value('approval','approvalDate'),year);tests.push(years===null?null:years>=options.minAge);}
- if(options.areaEnabled){const area=number(value('landArea'));tests.push(area===null||area<=0?null:area<options.maxArea);}
+ if(options.ageEnabled){const years=age(value('approval','approvalDate'),year);tests.push(years===null?null:years>=options.minAge&&(options.maxAge==null||years<=options.maxAge));}
+ if(options.areaEnabled){let raw=value('landArea');if(options.areaSource==='parcel'){raw=null;for(const type of ['parcel','land'])if(res[type]?.status==='single'&&known(res[type].rows[0].parcelArea)){raw=res[type].rows[0].parcelArea;break;}}const area=number(raw);tests.push(area===null||area<=0?null:area>=(options.minArea??0)&&(options.maxArea==null||area<options.maxArea));}
  if(options.road!=='all'){const road=res.land.status==='single'&&known(res.land.rows[0].road);tests.push(options.road==='missing'?!road:!!road);}
+ if(options.roadExact){const road=res.land.status==='single'?res.land.rows[0].road:null;tests.push(known(road)?String(road).trim()===options.roadExact:null);}
+ const physical=options.physical||'all';if(physical!=='all'){const v=fieldRecords.length===1?fieldRecords[0].fieldCriteria?.checks?.minor_physical_damage:null,knownCheck=v===true||v===false;tests.push(physical==='unknown'?!knownCheck:!knownCheck?null:physical==='checked'?v===true:v===false);}
  return tests.includes(false)?'no':tests.includes(null)?'unknown':'match';
 }
 const READINESS_FIELDS={coordinates:'빈집 좌표',pnu:'필지번호 PNU',grade:'조사 등급',approval:'사용승인일·연도',structure:'건물 구조',usage:'대장상 용도',buildingArea:'건축면적',totalArea:'연면적',landArea:'대장 대지면적',parcelArea:'공부상 필지면적',parcelGeometry:'필지 도형',buildingGeometry:'건물 도형',road:'도로접면 분류',height:'지형 높이',shape:'지형 형상',zone:'용도지역',parking:'주차대수',elevator:'승용승강기 수',fieldChecklist:'현장 판별 체크기록',physicalCheck:'창호·지붕·외벽 복합 파손항목 기록'};

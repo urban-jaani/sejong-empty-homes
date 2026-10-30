@@ -612,7 +612,6 @@ function renderVacancyStory(records){
 
 function renderBasicStats() {
   const records=allRecords.filter(r=>(matchesRegion(r.region))&&matchesGrade(r)),stats=computeBasicStats(records);
-  renderVacancyStory(records);
   document.getElementById('statsScope').textContent=activeYear+'년 자료 · '+regionDescription()+' · '+gradeDescription()+' · 조사 기록 '+records.length+'건 기준';
   document.getElementById('statsReload').textContent=records.some(r=>r.statsVersion!==1)?'연도와 면적을 모두 집계하려면 원본 조사 엑셀을 한 번 다시 선택하세요.':'';
   function row(body,values,total=false){const tr=document.createElement('tr');if(total)tr.className='stats-total';for(const value of values){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}
@@ -1227,8 +1226,10 @@ function selectCategory(category){
   activeCategory=category;
   if(window.VacancySpatial)window.VacancySpatial.setVisible(new URLSearchParams(location.search).get('view')==='reuse');
   for(const button of document.querySelectorAll('[data-category]'))button.setAttribute('aria-pressed',String(button.dataset.category===category));
-  const show=(id,visible)=>document.getElementById(id).hidden=!visible;
-  show('vacancyStory',category==='all');
+const show = (id, visible) => {
+  const element = document.getElementById(id);
+  if (element) element.hidden = !visible;
+};  show('vacancyStory',category==='all');
   show('regionSummaryPanel',category==='all');
   show('basicStatsPanel',category!=='point'&&category!=='reuse');
   show('reusePanel',category==='reuse');

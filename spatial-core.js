@@ -86,5 +86,21 @@ function evaluateReviewFilter(res,target,options,year=new Date().getFullYear()){
  if(options.road!=='all'){const road=res.land.status==='single'&&known(res.land.rows[0].road);tests.push(options.road==='missing'?!road:!!road);}
  return tests.includes(false)?'no':tests.includes(null)?'unknown':'match';
 }
-const api={evaluateReviewFilter,reviewSummary,TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
+const READINESS_FIELDS={coordinates:'빈집 좌표',pnu:'필지번호 PNU',grade:'조사 등급',approval:'사용승인일·연도',structure:'건물 구조',usage:'대장상 용도',buildingArea:'건축면적',totalArea:'연면적',landArea:'대장 대지면적',parcelArea:'공부상 필지면적',parcelGeometry:'필지 도형',buildingGeometry:'건물 도형',road:'도로접면 분류',height:'지형 높이',shape:'지형 형상',zone:'용도지역',parking:'주차대수',elevator:'승용승강기 수'};
+function readinessProfile(res,records,year=new Date().getFullYear()){
+ const fields={},known=v=>v!==null&&v!==undefined&&!['','-','미기재','미제공','자료 없음','원본 자료 없음'].includes(String(v).trim());
+ const state=(value,key,source)=>{if(key==='approval')return{state:age(value,year)===null?'invalid':'ready',source};if(['buildingArea','totalArea','landArea','parcelArea'].includes(key)){const n=number(value);return{state:n===null?'invalid':n===0?'zero':'ready',source};}return{state:'ready',source};};
+ function pick(key,types,fallback){let ambiguous=false,conflict=false;for(const type of types){const r=res[type];if(r.status==='conflict'){conflict=true;continue;}if(r.status==='multiple'){if(r.rows.some(row=>known(row[key])))ambiguous=true;continue;}if(r.status==='single'&&known(r.rows[0][key]))return state(r.rows[0][key],key,TYPES[type]);}
+  if(fallback){const values=[...new Set(records.map(r=>r[fallback]).filter(known).map(v=>String(v).trim()))];if(values.length===1)return state(values[0],key,'빈집 조사자료');if(values.length>1)ambiguous=true;}
+  return{state:conflict?'conflict':ambiguous?'ambiguous':'missing',source:''};}
+ fields.coordinates={state:res.point?'ready':'missing',source:'빈집 좌표파일'};fields.pnu={state:/^\d{19}$/.test(res.pnu)?'ready':'missing',source:'연결키·필지 후보'};
+ fields.grade=pick('grade',[],'grade');fields.approval=pick('approval',['register','building'],'approvalDate');fields.structure=pick('structure',['register','building']);fields.usage=pick('usage',['register','building']);
+ for(const key of ['buildingArea','totalArea','landArea'])fields[key]=pick(key,['register','building'],key);
+ fields.parcelArea=pick('parcelArea',['parcel','land']);
+ for(const [key,type]of [['parcelGeometry','parcel'],['buildingGeometry','building']]){const r=res[type];fields[key]={state:r.status==='single'&&r.rows[0].geometry?'ready':r.status==='multiple'?'ambiguous':r.status==='conflict'?'conflict':'missing',source:TYPES[type]};}
+ for(const key of ['road','height','shape','zone'])fields[key]=pick(key,key==='zone'?['zoning','land']:['land']);
+ const register=res.register;if(register.status==='single'){const row=register.rows[0];fields.parking={state:parking(row).complete?'ready':'missing',source:TYPES.register};fields.elevator={state:number(row.elevator)!==null?'ready':known(row.elevator)?'invalid':'missing',source:TYPES.register};}else for(const key of ['parking','elevator'])fields[key]={state:register.status==='multiple'?'ambiguous':register.status==='conflict'?'conflict':'missing',source:TYPES.register};
+ return fields;
+}
+const api={READINESS_FIELDS,readinessProfile,evaluateReviewFilter,reviewSummary,TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
 })(typeof window!=='undefined'?window:globalThis);

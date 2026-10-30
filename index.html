@@ -287,6 +287,8 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./reuse-filter.js"></script>
 <link rel="stylesheet" href="./layout-shell.css">
 <script defer src="./layout-shell.js"></script>
+<link rel="stylesheet" href="./three-d-map.css">
+<script defer src="./three-d-map.js"></script>
 </head>
 
 <body>
@@ -715,6 +717,7 @@ function renderResults() {
     regionTable.append(tr);
   }
   window.VacancyReuseFilter?.onResults();
+  window.Vacancy3DMap?.refresh();
   window.VacancyLayout?.onResults();
 }
 
@@ -862,6 +865,7 @@ function renderFloodTraces(){
 }
 window.addEventListener('vacancy-flood-layer',event=>{floodTraceFeatures=event.detail;renderFloodTraces();});
 window.VacancyNeighborhoodMapBridge={getMap:()=>liveMap};
+window.addEventListener('vacancy-3d-pick',event=>{const address=normalizeAddress(event.detail?.address);const points=coordinateRecords.filter(p=>normalizeAddress(p.address)===address&&matchesRegion(p.region));if(points.length)showPointDetails(points);});
 function initializeMap() {
   if(liveMap || typeof L==='undefined')return;
   liveMap=L.map('sejongMap',{minZoom:7,maxZoom:19,scrollWheelZoom:false,zoomControl:false,zoomSnap:1,zoomDelta:1});

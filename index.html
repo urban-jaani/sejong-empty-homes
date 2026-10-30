@@ -268,6 +268,7 @@ summary { cursor:pointer; font-weight:bold; }
  .survey-tabs a { padding:10px 22px; border-radius:7px; background:#e8eee6; text-decoration:none; color:#365847; font-weight:700; }
  .survey-tabs a[aria-current=page] { background:#21664f; color:white; }
  .year-notice { margin:8px 0 18px; font-size:12px; color:#607168; }
+#floodOverlapOnly[aria-pressed="true"]{background:#21664f;color:#fff}
 </style><link rel="stylesheet" href="./report-details.css">
 <script defer src="./pdf-lib.min.js"></script>
 <script defer src="./report-details.js"></script>
@@ -481,7 +482,7 @@ function gradeKey(record){
   const match=String(record.grade??'').replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급(?:\(.*\))?$/);
   return match?match[1]:'unknown';
 }
-function matchesGrade(record){return (!selectedGrades.size||selectedGrades.has(gradeKey(record)))&&(!window.VacancyReuseFilter||window.VacancyReuseFilter.matches(record.address));}
+function matchesGrade(record){return (!selectedGrades.size||selectedGrades.has(gradeKey(record)))&&(!window.VacancyReuseFilter||window.VacancyReuseFilter.matches(record.address))&&(!window.VacancyFloodFilter||window.VacancyFloodFilter.matches(record.address));}
 function gradeDescription(){return selectedGrades.size?[...selectedGrades].map(g=>g==='unknown'?'신규·미기재·기타':g+'등급').join(', '):'전체 등급';}
 function filteredCounts(){const counts=new Map();for(const r of allRecords)if(matchesGrade(r))counts.set(r.region,(counts.get(r.region)||0)+1);return counts;}
 function resetGrade(){selectedGrades.clear();updateGradeButtons();}
@@ -660,6 +661,7 @@ function renderDetails() {
 
 function renderResults() {
   if(window.VacancyReuseFilter)window.VacancyReuseFilter.rebuild();
+  if(window.VacancyFloodFilter)window.VacancyFloodFilter.rebuild();
   updateMap();
   renderDetails();
   renderBasicStats();
@@ -1045,7 +1047,7 @@ function renderPoints() {
   if(!pointLayer){if(coordinateLoaded)status.textContent='저장된 좌표를 복원했습니다. 지도 준비 후 표시합니다.';return;}
   pointLayer.clearLayers();
   const allowedAddresses=new Set(allRecords.filter(r=>matchesGrade(r)&&(matchesRegion(r.region))).map(r=>normalizeAddress(r.address)));
-  const shown=coordinateRecords.filter(p=>(matchesRegion(p.region))&&((!selectedGrades.size&&!window.VacancyReuseFilter?.isActive())||allowedAddresses.has(normalizeAddress(p.address))));
+  const shown=coordinateRecords.filter(p=>(matchesRegion(p.region))&&((!selectedGrades.size&&!window.VacancyReuseFilter?.isActive()&&!window.VacancyFloodFilter?.isActive())||allowedAddresses.has(normalizeAddress(p.address)))&&(!window.VacancyFloodFilter||window.VacancyFloodFilter.matchesPoint(p)));
   const groups=new Map();
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   let visibleLocations=0,visibleRecords=0,hiddenGray=0;

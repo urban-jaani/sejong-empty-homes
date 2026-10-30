@@ -275,6 +275,7 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./spatial-core.js"></script>
 <script defer src="./spatial-import.js"></script>
 <script defer src="./spatial-land-api.js"></script>
+<script defer src="./spatial-landuse-api.js"></script>
 <script defer src="./reuse-filter.js"></script>
 </head>
 
@@ -369,6 +370,7 @@ summary { cursor:pointer; font-weight:bold; }
 
 </div>
 <aside class="dashboard-right" aria-label="선택 지역 통계"><h2 id="rightCategoryTitle">전체 요약</h2>
+  <p id="selectionMessage" role="status">엑셀을 선택한 뒤 지역을 고를 수 있습니다.</p>
 
   <div class="cards">
     <div class="card">
@@ -606,7 +608,7 @@ function buildVacancyStory(records){
   return lines;
 }
 function renderVacancyStory(records){
-  const box=document.getElementById('storyContent');box.replaceChildren();
+  const box=document.getElementById('storyContent');if(!box)return;box.replaceChildren();
   for(const text of buildVacancyStory(records)){const p=document.createElement('p');p.textContent=text;box.append(p);}
 }
 
@@ -1226,10 +1228,8 @@ function selectCategory(category){
   activeCategory=category;
   if(window.VacancySpatial)window.VacancySpatial.setVisible(new URLSearchParams(location.search).get('view')==='reuse');
   for(const button of document.querySelectorAll('[data-category]'))button.setAttribute('aria-pressed',String(button.dataset.category===category));
-const show = (id, visible) => {
-  const element = document.getElementById(id);
-  if (element) element.hidden = !visible;
-};  show('vacancyStory',category==='all');
+  const show=(id,visible)=>{const element=document.getElementById(id);if(element)element.hidden=!visible;};
+  show('vacancyStory',category==='all');
   show('regionSummaryPanel',category==='all');
   show('basicStatsPanel',category!=='point'&&category!=='reuse');
   show('reusePanel',category==='reuse');

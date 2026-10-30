@@ -11,7 +11,7 @@ const countStatus=r=>r.status==='single'?'후보 1건':r.status==='multiple'?'�
 function refresh(){dataRevision++;renderInventory();root.dispatchEvent?.(new CustomEvent('vacancy-spatial-data-changed'));for(const item of [...mounts]){if(!item.host.isConnected){mounts.delete(item);continue;}render(item.host,item.target);}}
 function display(v){return v===undefined||v===null||v===''?'미제공':String(v);}
 function render(host,target){host.replaceChildren();host.append(el('h4','외부 데이터 자동 연결'));const res=core.resolve(datasets,target);const summary=el('section',undefined,'spatial-review');summary.append(el('h3','활용 검토 요약'));const summaryTable=el('table',undefined,'spatial-table');for(const item of core.reviewSummary(res,target)){const tr=el('tr');const value=el('td',item.value);value.append(note(item.source));tr.append(el('th',item.label),value);summaryTable.append(tr);}summary.append(summaryTable,note('추가 확인: 구조 안전성·차량과 보행 접근·지역 수요·소유자 의사·수선비. 활용 점수나 철거 판정은 산정하지 않습니다.'));host.append(summary);host.append(note('연결번호·주소·좌표로 찾은 후보입니다. 조사 당시 건물과 일치하는지 원자료와 함께 확인하세요.'));
- for(const type of Object.keys(core.TYPES)){const r=res[type],data=datasets[type],details=el('details');details.open=r.status==='single';details.append(el('summary',core.TYPES[type]+' · '+countStatus(r)));
+ for(const type of Object.keys(core.TYPES)){const r=res[type],data=datasets[type],details=el('details');details.open=r.status==='single';const resultLabel=type==='zoning'&&r.status==='single'&&Array.isArray(r.rows[0].designations)?'지정 '+r.rows[0].designations.length+'건 · PNU 조회 결과':countStatus(r);details.append(el('summary',core.TYPES[type]+' · '+resultLabel));
  if(!data){details.append(note('왼쪽 「공간·건축물 자료 불러오기」에서 파일을 선택하세요.'));host.append(details);continue;}
  details.append(note('출처: '+data.meta.name+' · 기준시점: '+(data.meta.asOf||'파일별 속성 참조 / 미기재')+' · 연결: '+(r.method||'없음')));
  if(r.status==='multiple')details.append(note('여러 후보를 하나의 건물로 합치지 않습니다. 아래 각각의 원자료를 확인하세요.'));
@@ -19,8 +19,10 @@ function render(host,target){host.replaceChildren();host.append(el('h4','외부 
  if(!r.rows.length)details.append(note(!res.point&&['parcel','building'].includes(type)?'좌표가 없거나 연결번호·주소가 일치하지 않습니다. 빈집 좌표 파일도 불러오세요.':'일치 자료가 없습니다. 관할 지역·자료 시점·PNU와 주소 표기를 확인하세요.'));
  for(const row of r.rows.slice(0,8)){const table=el('table');table.className='spatial-table';const add=(label,v)=>{const tr=el('tr');tr.append(el('th',label),el('td',display(v)));table.append(tr);};
  add('주소 / 지번',row.address||row.jibun);add('PNU',row.pnu);if(row.buildingPk)add('건축물대장 PK',row.buildingPk);if(row.gisId)add('GIS 건물식별번호',row.gisId);if(row.dong)add('동명칭',row.dong);
- const fields=type==='parcel'?['parcelArea']:type==='land'?['parcelArea','zone','road','height','shape']:type==='zoning'?['zone']:type==='base'?['violation']:['approval','structure','usage','buildingArea','landArea','totalArea'];
+ const fields=type==='parcel'?['parcelArea']:type==='land'?['parcelArea','zone','road','height','shape']:type==='zoning'?(Array.isArray(row.designations)?[]:['zone']):type==='base'?['violation']:['approval','structure','usage','buildingArea','landArea','totalArea'];
  for(const key of fields)add(labels[key],row[key]);
+ if(type==='zoning'&&Array.isArray(row.designations)){add('API 지정 목록',row.designations.length+'건');add('검토 범위','지정 목록·관계이며 건축·용도변경 허용 여부는 별도 확인');add('조회 시각',row.queriedAt);for(const item of row.designations){add('지정 명칭',item.name||item.code);add('지정 관계',item.relation||(item.relationCode?'코드 '+item.relationCode:'미제공'));if(item.code)add('지정 코드',item.code);if(item.date)add('자료 일자(제공값)',item.date);}if(!row.designations.length)add('조회 결과','응답 0건 · 규제 없음 판정이 아닙니다.');}
+
  if(type==='parcel'&&row.geometry){const area=core.geometryArea(row.geometry);add('도형 계산면적(참고·㎡)',area.toFixed(1));const limit=core.number(ruleInput?.value);if(limit>0){const basis=row.parcelArea>0?row.parcelArea:area;add('소규모 필지 후보',basis<limit?limit+'㎡ 미만':limit+'㎡ 이상');add('분석 근거',row.parcelArea>0?'공부상 필지면적':'도형 계산면적(참고)');}}
  if(['building','register'].includes(type)){const years=core.age(row.approval);add('경과연수(연도 차이)',years===null?'미산정':years+'년');}
  if(type==='register'){const pk=core.parking(row);add('주차대수',pk.value===null?'미제공':pk.value+'대'+(pk.complete?' (4개 항목 합계)':' (기재 항목 합계·일부 미제공)'));add('승용승강기 수',row.elevator);add('비상용승강기 수',row.emergencyElevator);add('위반건축물 여부(제공값)',row.violation);}
@@ -84,12 +86,22 @@ function landTargets(year='',skipSaved=true){
  const pnus=[];let cached=0;for(const pnu of unique){const rows=datasets.land?.byPnu.get(pnu)||[];if(skipSaved&&datasets.land?.meta.saved&&rows.some(r=>!year||r.year===year))cached++;else pnus.push(pnu);}
  return{pnus,cached,missing,totalAddresses:targets.length,totalParcels:unique.size};
 }
+function zoningTargets(skipSaved=true){
+ if(restoring)throw Error('저장자료를 복원 중입니다. 잠시 후 다시 누르세요.');if(datasets.zoning&&!datasets.zoning.meta.api)throw Error('토지이용계획 파일이 이미 연결되어 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
+ const targets=root.VacancySpatialBridge?.targets()||[];if(!targets.length)throw Error('현재 연도의 조사자료를 먼저 불러오세요.');const unique=new Set();let missing=0;for(const target of targets){const r=core.resolve(datasets,target);if(/^\d{19}$/.test(r.pnu))unique.add(r.pnu);else missing++;}let cached=0;const pnus=[];for(const pnu of unique)if(skipSaved&&datasets.zoning?.meta.saved&&datasets.zoning.byPnu.has(pnu))cached++;else pnus.push(pnu);return{pnus,cached,missing};
+}
+async function connectZoning(results){
+ if(datasets.zoning&&!datasets.zoning.meta.api)throw Error('토지이용계획 파일이 이미 연결돼 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
+ const rows=results.map(row=>{if(!/^\d{19}$/.test(row.pnu)||!Array.isArray(row.designations))throw Error('토지이용계획 자료 형식이 올바르지 않습니다.');const clean=core.normalizeRow({PNU:row.pnu},core.detect(['PNU'],'zoning'));clean.designations=row.designations.map(v=>Object.fromEntries(['code','name','relationCode','relation','mapNumber','date'].map(k=>[k,String(v[k]??'').slice(0,500)])));clean.queriedAt=String(row.queriedAt||'').slice(0,40);return clean;});
+ const pnus=new Set(rows.map(r=>r.pnu)),merged=[...(datasets.zoning?.rows||[]).filter(r=>!pnus.has(r.pnu)),...rows];const meta={name:'브이월드 토지이용계획 속성 API',api:true,asOf:'항목별 제공일자 확인',saved:false};mutations.zoning=(mutations.zoning||0)+1;const data=core.prepare('zoning',merged,meta);try{await cache('put','zoning',{version:1,type:'zoning',rows:merged,meta:{...meta,saved:true}});data.meta.saved=true;}catch{}datasets.zoning=data;refresh();return data.meta.saved;
+}
 async function connectLand(records){
  if(datasets.land&&!datasets.land.meta.api)throw Error('토지특성 파일이 이미 연결돼 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
  const rows=records.map(props=>core.normalizeRow(props,core.detect(Object.keys(props),'land')));if(rows.some(r=>!r.pnu))throw Error('토지정보에 올바른 PNU가 없습니다.');
  const pnus=new Set(rows.map(r=>r.pnu)),merged=[...(datasets.land?.rows||[]).filter(r=>!pnus.has(r.pnu)),...rows];const meta={name:'브이월드 토지특성 API',asOf:'응답별 기준연도 참조',api:true,loadedAt:new Date().toISOString(),saved:false};
  mutations.land=(mutations.land||0)+1;const data=core.prepare('land',merged,meta);try{await cache('put','land',{version:1,type:'land',rows:merged,meta:{...meta,saved:true}});data.meta.saved=true;}catch{}datasets.land=data;refresh();return data.meta.saved;
 }
-root.VacancySpatial={resolve:target=>core.resolve(datasets,target),landTargets,connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+root.VacancySpatial={zoningTargets,connectZoning,resolve:target=>core.resolve(datasets,target),landTargets,connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+root.addEventListener?.('vacancy-report-data-changed',()=>{dataRevision++;});
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(window);

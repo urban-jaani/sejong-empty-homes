@@ -1067,7 +1067,7 @@ function renderPoints() {
     visibleLocations++;visibleRecords+=points.length;
     const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:gradeStyle.stroke,fillColor:gradeStyle.fill,fillOpacity:1,bubblingMouseEvents:false});
     const tip=document.createElement('span');tip.textContent=first.address+' · '+gradeStyle.original+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
-    marker.on('click',()=>{showPointDetails(points);if(!window.VacancyLayout)marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360}).openPopup();else marker.closePopup?.();});marker.addTo(pointLayer);
+    marker.on('click',()=>{showPointDetails(points);marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360}).openPopup();});marker.addTo(pointLayer);
   }
   status.textContent=coordinateLoaded?'선택 지역 좌표 기록 '+visibleRecords+'건 · 서로 다른 위치 '+visibleLocations+'곳 · 점은 확대해도 반지름 4px로 유지됩니다.'+(hiddenGray?' · 등급 미확인·주소 미연결 좌표 '+hiddenGray+'건은 지도에서 숨겼습니다.':'')+(coordinateRejected?' 제외 기록 '+coordinateRejected+'건.':''):'좌표를 불러오면 빈집 위치에 점이 나타납니다.';
 }

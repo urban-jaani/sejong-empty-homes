@@ -12,11 +12,32 @@ function parse(data,pnu,year=''){
  if(selected.length!==1)throw Error('동일 필지·연도에 여러 결과가 있어 자동 적용하지 않았습니다.');
  return selected[0];
 }
+let callbackSerial=0;
+function browserRequest(url,signal){
+ return new Promise((resolve,reject)=>{
+  if(!root.document?.head)return reject(Error('브라우저 연결 도구를 사용할 수 없습니다. 온라인 현황판에서 다시 시도하세요.'));
+  const callback='sejongLandCallback_'+Date.now()+'_'+(++callbackSerial),script=root.document.createElement('script');let finished=false,timer;
+  function finish(error,data){if(finished)return;finished=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);script.remove();delete root[callback];error?reject(error):resolve(data);}
+  function abort(){finish(Error('조회 시간이 초과됐습니다. 다시 시도하세요.'));}
+  if(signal?.aborted)return abort();
+  root[callback]=data=>finish(null,data);signal?.addEventListener('abort',abort,{once:true});
+  script.onerror=()=>finish(Error('브이월드 브라우저 연결도 실패했습니다. 인증키 등록 URL·토지특성 API 권한·네트워크를 확인하세요.'));
+  script.onload=()=>{if(!finished)finish(Error('브이월드에서 브라우저용 응답을 받지 못했습니다. 토지특성 API 권한·등록 URL을 확인하세요. (응답 방식 확인 필요)'));};
+  const callbackUrl=new URL(url);callbackUrl.searchParams.set('callback',callback);script.src=callbackUrl.href;script.referrerPolicy='strict-origin-when-cross-origin';
+  timer=setTimeout(abort,20000);try{root.document.head.append(script);}catch{finish(Error('브라우저 호출이 차단됐습니다. 온라인 현황판에서 다시 시도하세요.'));}
+ });
+}
 async function request(pnu,year,key,signal){
+ if(!/^\d{19}$/.test(pnu))throw Error('19자리 PNU가 필요합니다.');
  const url=new URL('https://api.vworld.kr/ned/data/getLandCharacteristics');for(const [k,v]of Object.entries({pnu,format:'json',numOfRows:'1000',pageNo:'1',key,domain:new URL('.',root.location.href).href,...(year?{stdrYear:year}:{})}))url.searchParams.set(k,v);
- let response;try{response=await root.fetch(url.href,{signal,credentials:'omit',referrerPolicy:'strict-origin-when-cross-origin'});}catch(e){if(e.name==='AbortError')throw Error('조회 시간이 초과됐습니다. 다시 시도하세요.');throw Error('토지특성 API에 연결하지 못했습니다. 인터넷·인증키 등록 URL·API 권한과 브라우저 교차출처 허용 여부를 확인하세요.');}
+ let response;try{response=await root.fetch(url.href,{signal,credentials:'omit',referrerPolicy:'strict-origin-when-cross-origin'});}catch(e){
+  if(signal?.aborted||e.name==='AbortError')throw Error('조회 시간이 초과됐습니다. 다시 시도하세요.');
+  if(root.document?.head)return parse(await browserRequest(url.href,signal),pnu,year);
+  throw Error('토지특성 API에 연결하지 못했습니다. 온라인 현황판에서 다시 시도하세요.');
+ }
  if(!response.ok)throw Error('토지특성 서버 응답 오류 ('+response.status+').');let json;try{json=await response.json();}catch{throw Error('JSON 응답을 받지 못했습니다. 토지특성 API 권한을 확인하세요.');}return parse(json,pnu,year);
 }
+
 function init(){if(new URLSearchParams(root.location.search).get('view')!=='reuse')return;const doc=root.document,panel=doc.getElementById('spatialImportPanel');if(!panel)return;
  const el=(tag,text)=>{const n=doc.createElement(tag);if(text)n.textContent=text;return n;},box=el('details');box.id='landApiPanel';box.open=true;box.append(el('summary','토지특성 자동 조회'));
  const key=el('input');key.type='password';key.autocomplete='off';key.setAttribute('aria-label','브이월드 인증키');key.placeholder='브이월드 인증키';try{key.value=root.localStorage.getItem('sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':vworld-key')||'';}catch{}
@@ -28,5 +49,5 @@ function init(){if(new URLSearchParams(root.location.search).get('view')!=='reus
  try{const row=await request(target.pnu,y,value,controller.signal);const saved=await root.VacancySpatial.connectLand([row]);if(current?.pnu===target.pnu)status.textContent=row.stdrYear+'년 자료 연결 완료 · '+(saved?'이 브라우저에 저장됨':'저장 공간 부족: 현재 화면에서만 사용');}catch(e){if(current?.pnu===target.pnu)status.textContent=e.message;}finally{clearTimeout(timer);busy=false;button.disabled=!current;}};
  box.append(info,key,year,selected,button,status);panel.append(box);
 }
-const api={parse,request};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyLandApi=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
+const api={parse,request,browserRequest};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyLandApi=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
 })(typeof window!=='undefined'?window:globalThis);

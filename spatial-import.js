@@ -1,7 +1,7 @@
 (function(root){'use strict';
 const reuseTabMode=new URLSearchParams(location.search).get('view')==='reuse';
 const core=root.VacancySpatialCore;if(!core||!root.document)return;const doc=root.document;
-const scope='sejong-dashboard:v1:'+new URL('.',location.href).pathname,dbName='sejong-spatial-imports-v1';const mutations={};let datasets={},panel,status,inventory,preview,ruleInput,activeWorker=null,serial=0;const mounts=new Set();
+const scope='sejong-dashboard:v1:'+new URL('.',location.href).pathname,dbName='sejong-spatial-imports-v1';const mutations={};let restoring=true;let datasets={},panel,status,inventory,preview,ruleInput,activeWorker=null,serial=0;const mounts=new Set();
 const labels={...Object.fromEntries(Object.entries(core.FIELDS).map(([k,v])=>[k,v[0]])),pnu:'필지고유번호 PNU',buildingPk:'건축물대장 PK',gisId:'GIS 건물식별번호',road:'도로접면(원자료 분류)',parcelArea:'공부상 필지면적(㎡)',landArea:'건축물대장 대지면적(㎡)',buildingArea:'건축면적(㎡)',totalArea:'연면적(㎡)',approval:'사용승인일',zone:'용도지역',year:'자료 기준연도',date:'생성·기준일'};
 const keysByType={parcel:['pnu','address','legalName','jibun','parcelArea','date'],building:['pnu','gisId','buildingPk','address','legalName','jibun','dong','approval','structure','usage','landArea','buildingArea','totalArea','date'],register:['pnu','buildingPk','address','dong','sigungu','bjdong','platGb','bun','ji','approval','structure','usage','landArea','buildingArea','totalArea','parkingIndoorAuto','parkingOutdoorAuto','parkingIndoorMech','parkingOutdoorMech','elevator','emergencyElevator','violation','date'],base:['pnu','buildingPk','address','sigungu','bjdong','platGb','bun','ji','violation','date'],land:['pnu','address','legalName','jibun','parcelArea','zone','road','height','shape','year','date'],zoning:['pnu','address','zone','date']};
 const el=(tag,content,cls)=>{const n=doc.createElement(tag);if(content!==undefined)n.textContent=content;if(cls)n.className=cls;return n;};
@@ -51,14 +51,23 @@ async function init(){if(!reuseTabMode)return;const left=doc.querySelector('.das
  const links=el('details');links.append(el('summary','자료 다운로드 안내'));for(const [title,url]of [['연속지적도 (SHP)','https://www.data.go.kr/data/15125044/fileData.do'],['GIS 건물통합정보','https://www.vworld.kr/dtmk/dtmk_ntads_s002.do?dsId=18'],['건축물대장 표제부·기본개요','https://www.hub.go.kr/portal/opn/tyb/idx-bdrg.do'],['토지특성정보','https://www.data.go.kr/data/15123549/openapi.do'],['용도지역·토지이용계획','https://www.data.go.kr/data/15123973/openapi.do']]){const a=el('a',title);a.href=url;a.target='_blank';a.rel='noopener';links.append(a,el('br'));}links.append(note('공간자료는 세종시 범위로 다운로드하세요. API 안내는 파일 다운로드와 다르며 활용신청이 필요할 수 있습니다. 이 화면은 내려받은 파일을 읽습니다.'));
  panel.append(type,dateLabel,file,opts,load,status,preview,inventory,rl,check,auditBox,links);left.append(panel);
  for(const t of Object.keys(core.TYPES)){const version=mutations[t]||0;try{const data=await cache('get',t);if((mutations[t]||0)===version&&data?.version===1&&data.type===t){datasets[t]=core.prepare(t,data.rows,data.meta);refresh();}}catch{status.textContent='일부 저장자료를 복원하지 못했습니다. 해당 파일을 다시 선택하세요.';}}
+ restoring=false;
 }
 function focus(target){if(!reuseTabMode)return;const res=core.resolve(datasets,target),shapes=[];for(const kind of ['parcel','building'])if(res[kind].status==='single')for(const row of res[kind].rows)if(row.geometry)shapes.push({geometry:row.geometry,kind});root.dispatchEvent(new CustomEvent('vacancy-spatial-focus',{detail:{shapes,point:res.point,pnu:res.pnu,address:target.address}}));}
+function landTargets(year='',skipSaved=true){
+ if(restoring)throw Error('저장자료를 복원 중입니다. 잠시 후 다시 누르세요.');
+ if(datasets.land&&!datasets.land.meta.api)throw Error('토지특성 파일이 이미 연결돼 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
+ const targets=root.VacancySpatialBridge?.targets()||[];if(!targets.length)throw Error('현재 연도의 빈집 조사자료와 좌표를 먼저 불러오세요.');
+ const unique=new Set();let missing=0;for(const target of targets){const r=core.resolve(datasets,target);if(/^\d{19}$/.test(r.pnu))unique.add(r.pnu);else missing++;}
+ const pnus=[];let cached=0;for(const pnu of unique){const rows=datasets.land?.byPnu.get(pnu)||[];if(skipSaved&&datasets.land?.meta.saved&&rows.some(r=>!year||r.year===year))cached++;else pnus.push(pnu);}
+ return{pnus,cached,missing,totalAddresses:targets.length,totalParcels:unique.size};
+}
 async function connectLand(records){
  if(datasets.land&&!datasets.land.meta.api)throw Error('토지특성 파일이 이미 연결돼 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
  const rows=records.map(props=>core.normalizeRow(props,core.detect(Object.keys(props),'land')));if(rows.some(r=>!r.pnu))throw Error('토지정보에 올바른 PNU가 없습니다.');
  const pnus=new Set(rows.map(r=>r.pnu)),merged=[...(datasets.land?.rows||[]).filter(r=>!pnus.has(r.pnu)),...rows];const meta={name:'브이월드 토지특성 API',asOf:'응답별 기준연도 참조',api:true,loadedAt:new Date().toISOString(),saved:false};
  mutations.land=(mutations.land||0)+1;const data=core.prepare('land',merged,meta);try{await cache('put','land',{version:1,type:'land',rows:merged,meta:{...meta,saved:true}});data.meta.saved=true;}catch{}datasets.land=data;refresh();return data.meta.saved;
 }
-root.VacancySpatial={connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+root.VacancySpatial={landTargets,connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(window);

@@ -269,6 +269,7 @@ summary { cursor:pointer; font-weight:bold; }
  .survey-tabs a[aria-current=page] { background:#21664f; color:white; }
  .year-notice { margin:8px 0 18px; font-size:12px; color:#607168; }
 #floodOverlapOnly[aria-pressed="true"]{background:#21664f;color:#fff}
+.purpose-review-table th:first-child,.purpose-review-table td:first-child{width:26%}.purpose-review-table p{margin:5px 0}#purposeReview>details{margin:10px 0}#purposeReview>details>summary{font-weight:700;color:#21664f;cursor:pointer}
 </style><link rel="stylesheet" href="./report-details.css">
 <script defer src="./pdf-lib.min.js"></script>
 <script defer src="./report-details.js"></script>
@@ -280,6 +281,7 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./sgis-census.js"></script>
 <script defer src="./neighborhood.js"></script>
 <script defer src="./flood-layer.js"></script>
+<script defer src="./use-review.js"></script>
 <script defer src="./reuse-filter.js"></script>
 </head>
 
@@ -1017,9 +1019,7 @@ function renderReuseDetails(points){
  card.append(table,node('p','등급·연도·면적은 조사자료의 기재값입니다. 구조 안전성, 신축 허용 여부, 사업성을 확인한 결과가 아닙니다.'));
  const conditionHost=document.createElement('div');if(window.VacancySpatial){const matchingPoints=points.filter(p=>normalizeAddress(p.address)===normalizeAddress(r.address));const pos=matchingPoints[0];window.VacancySpatial.mount(conditionHost,{...r,longitude:pos?.longitude,latitude:pos?.latitude});}card.append(conditionHost);
  const report=document.createElement('div');if(window.VacancyReports)window.VacancyReports.mount(report,[r.address]);card.append(report);
- const next=document.createElement('details');next.append(node('summary','용도별 다음 확인사항'));
- for(const text of ['주거 재사용: 안전·수선비·주거 수요·생활시설 접근성','공동체 공간: 주민 수요·운영 주체·접근성','상업 활용: 이용 수요·영업 가능 용도·주차·운영비','철거 후 공지 활용: 안전 진단·소유자 동의·토지 규제·관리 주체'])next.append(node('p',text));
- next.append(node('p','위 항목은 검토 목록이며 용도 추천이나 철거 대상 판정이 아닙니다.'));card.append(next);host.append(card);
+ host.append(card);
  });
 }
 

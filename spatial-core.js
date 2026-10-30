@@ -64,5 +64,19 @@ async function parseFile(file,options,deps=root){const name=file.name.toLowerCas
  if(/\.(geojson|json)$/.test(name)){const obj=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));const crs=obj.crs?.properties?.name;if(crs&&!/4326|CRS84/i.test(crs))throw Error('GeoJSON은 EPSG:4326으로 변환해 주세요.');return unwrap(obj);}
  if(/\.(xlsx|xls)$/.test(name)){if(!deps.XLSX)throw Error('엑셀 읽기 도구를 준비 중입니다. 잠시 후 다시 선택하세요.');const book=deps.XLSX.read(bytes);const grid=deps.XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{header:1,defval:'',raw:true});return tableRows(grid,options.header).map(props=>({props}));}
  if(!/\.(csv|tsv|txt)$/.test(name))throw Error('SHP ZIP, GeoJSON, CSV/TXT, XLSX를 선택하세요.');let txt;try{txt=new TextDecoder(options.encoding==='auto'?'utf-8':options.encoding,{fatal:true}).decode(bytes);}catch{if(options.encoding!=='auto')throw Error('인코딩을 확인하세요.');txt=new TextDecoder('euc-kr').decode(bytes);}const first=txt.split(/\r?\n/)[0],delimiter=options.delimiter==='auto'?['\t','|',','].sort((a,b)=>first.split(b).length-first.split(a).length)[0]:options.delimiter;return tableRows(csv(txt.replace(/^\uFEFF/,''),delimiter),options.header).map(props=>({props}));}
-const api={TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
+
+function reviewSummary(res,target,year=new Date().getFullYear()){
+ const rows=[],known=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&String(v)!=='미기재';
+ const add=(label,value,source)=>rows.push({label,value:known(value)?String(value):'자료 없음',source});
+ const pick=(key,fallback)=>{for(const type of ['register','building']){const r=res[type];if(r.status==='single'&&known(r.rows[0][key]))return{value:r.rows[0][key],source:TYPES[type]+' · 후보 1건'};}return{value:target[fallback||key],source:'빈집 조사자료'};};
+ add('빈집 등급',target.grade,'빈집 조사자료');
+ const approval=pick('approval','approvalDate');add('사용승인일·연도',approval.value,approval.source);const years=age(approval.value,year);add('경과연수(연도 차이)',years===null?'미산정':years+'년',approval.source);
+ for(const [label,key,fallback]of [['구조','structure'],['대장상 용도','usage'],['건축면적','buildingArea'],['연면적','totalArea'],['대장 대지면적','landArea']]){const v=pick(key,fallback);add(label,known(v.value)?v.value+(['buildingArea','totalArea','landArea'].includes(key)?' ㎡':''):null,v.source);}
+ const parcel=res.parcel;if(parcel.status==='single'){const r=parcel.rows[0];add('공부상 필지면적',known(r.parcelArea)?r.parcelArea+' ㎡':null,TYPES.parcel+' · 후보 1건');if(r.geometry)add('필지 도형 계산면적(참고)',geometryArea(r.geometry).toFixed(1)+' ㎡','경계 도형으로 계산');}else add('필지 조건',parcel.status==='multiple'?'여러 후보 · 확인 필요':'미연결','연속지적도');
+ for(const t of ['register','building'])if(res[t].status==='multiple'||res[t].status==='conflict')add(TYPES[t]+' 연결',res[t].status==='multiple'?'후보 '+res[t].rows.length+'건 · 개별 확인 필요':'연결정보 불일치','자동으로 한 건을 선택하지 않음');
+ for(const [label,key]of [['도로접면','road'],['용도지역','zone']]){let value=null,source='추가 자료 필요';for(const t of key==='road'?['land']:['zoning','land'])if(res[t].status==='single'&&known(res[t].rows[0][key])){value=res[t].rows[0][key];source=TYPES[t]+' · 후보 1건';break;}add(label,value,source);}
+ return rows;
+}
+
+const api={reviewSummary,TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
 })(typeof window!=='undefined'?window:globalThis);

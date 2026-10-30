@@ -10,7 +10,7 @@ function cache(action,type,value){return new Promise((resolve,reject)=>{if(!root
 const countStatus=r=>r.status==='single'?'후보 1건':r.status==='multiple'?'후보 '+r.rows.length+'건':r.status==='conflict'?'자료 불일치':r.reason||'미연결';
 function refresh(){renderInventory();for(const item of [...mounts]){if(!item.host.isConnected){mounts.delete(item);continue;}render(item.host,item.target);}}
 function display(v){return v===undefined||v===null||v===''?'미제공':String(v);}
-function render(host,target){host.replaceChildren();host.append(el('h4','외부 데이터 자동 연결'));const res=core.resolve(datasets,target);host.append(note('연결번호·주소·좌표로 찾은 후보입니다. 조사 당시 건물과 일치하는지 원자료와 함께 확인하세요.'));
+function render(host,target){host.replaceChildren();host.append(el('h4','외부 데이터 자동 연결'));const res=core.resolve(datasets,target);const summary=el('section',undefined,'spatial-review');summary.append(el('h3','활용 검토 요약'));const summaryTable=el('table',undefined,'spatial-table');for(const item of core.reviewSummary(res,target)){const tr=el('tr');const value=el('td',item.value);value.append(note(item.source));tr.append(el('th',item.label),value);summaryTable.append(tr);}summary.append(summaryTable,note('추가 확인: 구조 안전성·차량과 보행 접근·지역 수요·소유자 의사·수선비. 활용 점수나 철거 판정은 산정하지 않습니다.'));host.append(summary);host.append(note('연결번호·주소·좌표로 찾은 후보입니다. 조사 당시 건물과 일치하는지 원자료와 함께 확인하세요.'));
  for(const type of Object.keys(core.TYPES)){const r=res[type],data=datasets[type],details=el('details');details.open=r.status==='single';details.append(el('summary',core.TYPES[type]+' · '+countStatus(r)));
  if(!data){details.append(note('왼쪽 「공간·건축물 자료 불러오기」에서 파일을 선택하세요.'));host.append(details);continue;}
  details.append(note('출처: '+data.meta.name+' · 기준시점: '+(data.meta.asOf||'파일별 속성 참조 / 미기재')+' · 연결: '+(r.method||'없음')));
@@ -52,6 +52,7 @@ async function init(){if(!reuseTabMode)return;const left=doc.querySelector('.das
  panel.append(type,dateLabel,file,opts,load,status,preview,inventory,rl,check,auditBox,links);left.append(panel);
  for(const t of Object.keys(core.TYPES)){const version=mutations[t]||0;try{const data=await cache('get',t);if((mutations[t]||0)===version&&data?.version===1&&data.type===t){datasets[t]=core.prepare(t,data.rows,data.meta);refresh();}}catch{status.textContent='일부 저장자료를 복원하지 못했습니다. 해당 파일을 다시 선택하세요.';}}
 }
-root.VacancySpatial={mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+function focus(target){if(!reuseTabMode)return;const res=core.resolve(datasets,target),shapes=[];for(const kind of ['parcel','building'])if(res[kind].status==='single')for(const row of res[kind].rows)if(row.geometry)shapes.push({geometry:row.geometry,kind});root.dispatchEvent(new CustomEvent('vacancy-spatial-focus',{detail:{shapes,point:res.point}}));}
+root.VacancySpatial={focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(window);

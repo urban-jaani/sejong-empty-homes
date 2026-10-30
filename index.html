@@ -1013,11 +1013,20 @@ function renderReuseDetails(points){
 window.VacancySpatialBridge={targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
 let spatialHighlight=null;
 window.addEventListener('vacancy-spatial-highlight',event=>{if(!liveMap||!window.L)return;if(spatialHighlight)liveMap.removeLayer(spatialHighlight);spatialHighlight=L.featureGroup().addTo(liveMap);for(const row of event.detail){L.geoJSON({type:'Feature',properties:{},geometry:row.geometry},{interactive:false,style:{color:row.kind==='parcel'?'#21664f':'#7e42a8',weight:2,fillOpacity:0.12}}).addTo(spatialHighlight);}if(spatialHighlight.getLayers().length)liveMap.fitBounds(spatialHighlight.getBounds(),{padding:[40,40],maxZoom:18});});
+window.addEventListener('vacancy-spatial-focus',event=>{
+ if(!liveMap||!window.L||new URLSearchParams(location.search).get('view')!=='reuse')return;
+ if(spatialHighlight)liveMap.removeLayer(spatialHighlight);spatialHighlight=L.featureGroup().addTo(liveMap);
+ for(const row of event.detail.shapes)L.geoJSON({type:'Feature',properties:{},geometry:row.geometry},{interactive:false,style:{color:row.kind==='parcel'?'#21664f':'#7e42a8',weight:2,fillOpacity:0.15}}).addTo(spatialHighlight);
+ const point=event.detail.point;
+ if(spatialHighlight.getLayers().length){const bounds=spatialHighlight.getBounds();if(point)bounds.extend([point[1],point[0]]);liveMap.fitBounds(bounds,{padding:[50,50],maxZoom:18});}
+ else if(point)liveMap.setView([point[1],point[0]],Math.max(liveMap.getZoom(),18));
+});
 function showPointDetails(points) {
  if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}
   document.getElementById('pointDetails').replaceChildren(createHouseDetails(points));
   renderReuseDetails(points);
   selectCategory(activeCategory==='reuse'||new URLSearchParams(location.search).get('view')==='reuse'?'reuse':'point');
+  if(new URLSearchParams(location.search).get('view')==='reuse'&&window.VacancySpatial&&points[0])window.VacancySpatial.focus(points[0]);
 }
 
 function renderPoints() {

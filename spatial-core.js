@@ -78,5 +78,13 @@ function reviewSummary(res,target,year=new Date().getFullYear()){
  return rows;
 }
 
-const api={reviewSummary,TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
+function evaluateReviewFilter(res,target,options,year=new Date().getFullYear()){
+ const tests=[],known=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&String(v)!=='미기재';
+ const value=(key,fallback)=>{for(const type of ['register','building'])if(res[type].status==='single'&&known(res[type].rows[0][key]))return res[type].rows[0][key];return target[fallback||key];};
+ if(options.ageEnabled){const years=age(value('approval','approvalDate'),year);tests.push(years===null?null:years>=options.minAge);}
+ if(options.areaEnabled){const area=number(value('landArea'));tests.push(area===null||area<=0?null:area<options.maxArea);}
+ if(options.road!=='all'){const road=res.land.status==='single'&&known(res.land.rows[0].road);tests.push(options.road==='missing'?!road:!!road);}
+ return tests.includes(false)?'no':tests.includes(null)?'unknown':'match';
+}
+const api={evaluateReviewFilter,reviewSummary,TYPES,FIELDS,detect,normalizeRow,prepare,resolve,contains,bounds,geometryArea,parking,age,parseFile,tableRows,pnuFromParts,number};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySpatialCore=api;
 })(typeof window!=='undefined'?window:globalThis);

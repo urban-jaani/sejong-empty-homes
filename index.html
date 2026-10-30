@@ -275,6 +275,7 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./spatial-core.js"></script>
 <script defer src="./spatial-import.js"></script>
 <script defer src="./spatial-land-api.js"></script>
+<script defer src="./reuse-filter.js"></script>
 </head>
 
 <body>
@@ -481,7 +482,7 @@ function gradeKey(record){
   const match=String(record.grade??'').replace(/\s/g,'').match(/^(?:\(구\))?([1-4])등급(?:\(.*\))?$/);
   return match?match[1]:'unknown';
 }
-function matchesGrade(record){return !selectedGrades.size||selectedGrades.has(gradeKey(record));}
+function matchesGrade(record){return (!selectedGrades.size||selectedGrades.has(gradeKey(record)))&&(!window.VacancyReuseFilter||window.VacancyReuseFilter.matches(record.address));}
 function gradeDescription(){return selectedGrades.size?[...selectedGrades].map(g=>g==='unknown'?'신규·미기재·기타':g+'등급').join(', '):'전체 등급';}
 function filteredCounts(){const counts=new Map();for(const r of allRecords)if(matchesGrade(r))counts.set(r.region,(counts.get(r.region)||0)+1);return counts;}
 function resetGrade(){selectedGrades.clear();updateGradeButtons();}
@@ -660,6 +661,7 @@ function renderDetails() {
 }
 
 function renderResults() {
+  if(window.VacancyReuseFilter)window.VacancyReuseFilter.rebuild();
   updateMap();
   renderDetails();
   renderBasicStats();
@@ -1011,7 +1013,7 @@ function renderReuseDetails(points){
  });
 }
 
-window.VacancySpatialBridge={targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
+window.VacancySpatialBridge={refreshView(clear=false){if(clear){document.getElementById('reuseDetails').textContent='조건이 바뀌었습니다. 지도에서 빈집을 선택하세요.';document.getElementById('pointDetails').textContent='지도에서 빈집을 선택하세요.';if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}}renderResults();},records(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));return allRecords.map(r=>({...r,longitude:coords.get(normalizeAddress(r.address))?.longitude,latitude:coords.get(normalizeAddress(r.address))?.latitude}));},targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
 let spatialHighlight=null;
 window.addEventListener('vacancy-spatial-highlight',event=>{if(!liveMap||!window.L)return;if(spatialHighlight)liveMap.removeLayer(spatialHighlight);spatialHighlight=L.featureGroup().addTo(liveMap);for(const row of event.detail){L.geoJSON({type:'Feature',properties:{},geometry:row.geometry},{interactive:false,style:{color:row.kind==='parcel'?'#21664f':'#7e42a8',weight:2,fillOpacity:0.12}}).addTo(spatialHighlight);}if(spatialHighlight.getLayers().length)liveMap.fitBounds(spatialHighlight.getBounds(),{padding:[40,40],maxZoom:18});});
 window.addEventListener('vacancy-spatial-focus',event=>{
@@ -1035,7 +1037,7 @@ function renderPoints() {
   if(!pointLayer){if(coordinateLoaded)status.textContent='저장된 좌표를 복원했습니다. 지도 준비 후 표시합니다.';return;}
   pointLayer.clearLayers();
   const allowedAddresses=new Set(allRecords.filter(r=>matchesGrade(r)&&(matchesRegion(r.region))).map(r=>normalizeAddress(r.address)));
-  const shown=coordinateRecords.filter(p=>(matchesRegion(p.region))&&(!selectedGrades.size||allowedAddresses.has(normalizeAddress(p.address))));
+  const shown=coordinateRecords.filter(p=>(matchesRegion(p.region))&&((!selectedGrades.size&&!window.VacancyReuseFilter?.isActive())||allowedAddresses.has(normalizeAddress(p.address))));
   const groups=new Map();
   for(const p of shown){const key=p.longitude+','+p.latitude;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(p);}
   let visibleLocations=0,visibleRecords=0,hiddenGray=0;
@@ -1055,7 +1057,7 @@ function renderPoints() {
 document.getElementById('coordinateFile').addEventListener('change', async function () {
   const file = this.files[0];
   coordinateRecords = [];coordinateRejected = 0;coordinateLoaded = false;
-  renderPoints();
+  renderResults();
   if (!file) return;
   setImportBusy(true);
   try {
@@ -1083,10 +1085,10 @@ document.getElementById('coordinateFile').addEventListener('change', async funct
       coordinateRecords.push({address,longitude,latitude,region:match ? match[1] : unknownRegion});
     }
     coordinateLoaded = true;
-    renderPoints();
+    renderResults();
     rememberCoordinates(file.name);
   } catch (error) {
-    coordinateRecords = [];coordinateLoaded = false;renderPoints();
+    coordinateRecords = [];coordinateLoaded = false;renderResults();
     let restored = false;
     try { restored = restoreCoordinates(); } catch {}
     document.getElementById('pointStatus').textContent = '좌표 읽기 실패: ' + error.message + (restored ? ' · 이전 저장 좌표를 다시 표시합니다.' : '');
@@ -1172,7 +1174,7 @@ function restoreCoordinates() {
   coordinateRejected = data.rejected;
   coordinateLoaded = true;
   coordinateSource = data;
-  renderPoints();
+  renderResults();
   return true;
 }
 

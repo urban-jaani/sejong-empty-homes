@@ -3,6 +3,7 @@
 'use strict';
 const stringFields=['id','address','region','grade','fieldSurveyDate','gradeSurveyDate','type','approvalYear','floors','structure','roof','vacancyPeriod','vacancyCause','reuseIntent','disclosureIntent'];
 const numberFields=['landArea','totalArea','buildingArea'];
+const FIELD_CHECKS={"major_meter_removed": "계량기 철거", "major_notice": "폐공가·출입금지 안내 부착", "major_entrance_wood": "강목 등으로 출입구 폐쇄", "major_entrance_objects": "물건·쓰레기 등으로 출입구 폐쇄", "major_entrance_chain": "쇠사슬·전기줄 등으로 출입구 폐쇄", "major_entrance_other": "기타 방법으로 출입구 폐쇄", "major_statement": "소유자·관리인 또는 이웃 진술", "minor_meter_stopped": "계량기 미작동", "minor_arrears_notice": "요금 독촉 안내 부착", "minor_physical_damage": "창호 방치 또는 지붕·외벽 등 물리적 파손", "minor_mail": "우편물 대량 적치", "minor_waste": "외부 청소 불량·쓰레기 적치", "minor_locked": "입구 잠금 또는 출입흔적 없음", "minor_gas_stopped": "도시가스 사용 중지·잠금", "minor_no_furniture": "생활살림살이 흔적 없음", "minor_no_residence_group": "내부 거주흔적 없음: 2개 이상 항목", "minor_no_dishes": "부엌 식기 없음", "minor_indoor_dust": "내부 먼지·쓰레기 적치", "minor_other": "기타 빈집 판별 사유"};
 function normalizeAddress(value){return String(value??'').trim().replace(/\s+/g,' ').replace(/^세종시\s+/,'세종특별자치시 ');}
 function validateDataset(input){
  if(!input||input.format!=='sejong-vacancy-details'||input.version!==1||!Array.isArray(input.records)||!input.records.length||input.records.length>10000)throw new Error('상세 조사대장 JSON 형식이 아닙니다. 제공된 파일을 선택하세요.');
@@ -22,6 +23,7 @@ function validateDataset(input){
    if(!fs||!Number.isInteger(f.page)||f.page<1||f.page>fs.pageCount||!Array.isArray(f.box)||f.box.length!==4||!f.box.every(Number.isFinite)||f.box[0]<0||f.box[1]<0||f.box[2]<=f.box[0]||f.box[3]<=f.box[1]||f.box[2]>2000||f.box[3]>2000)throw new Error('판별기준 영역 정보가 올바르지 않습니다.');
    clean.fieldSection={page:f.page,box:[...f.box]};
   }
+  if(row.fieldCriteria){const f=row.fieldCriteria;if(!clean.fieldSection||f.version!==1||f.page!==clean.fieldSection.page||!f.checks||Array.isArray(f.checks))throw Error('현장 체크기록 형식이 올바르지 않습니다.');const checks={};for(const key of Object.keys(FIELD_CHECKS)){const v=f.checks[key];if(v!==true&&v!==false&&v!==null)throw Error('현장 체크값은 체크·미체크·판독불가 중 하나여야 합니다.');checks[key]=v;}clean.fieldCriteria={version:1,page:f.page,checks};}
   return clean;
  });
  return {format:input.format,version:1,...(fs?{fieldSource:{pageCount:fs.pageCount,byteLength:fs.byteLength,sha256:fs.sha256}}:{}),source:{name:src.name.slice(0,200),year:src.year,pageCount:src.pageCount,byteLength:src.byteLength,sha256:src.sha256},records};
@@ -52,7 +54,7 @@ async function extractCriteria(sourceDoc,section,PDFLib){
  const doc=await PDFLib.PDFDocument.create();const embedded=await doc.embedPage(original,{left,bottom,right,top});
  const target=doc.addPage([right-left,top-bottom]);target.drawPage(embedded);return doc.save();
 }
-const api={extractCriteria,validateDataset,normalizeAddress,lookupRecords,verifyPdfBytes,extractPage};
+const api={FIELD_CHECKS,extractCriteria,validateDataset,normalizeAddress,lookupRecords,verifyPdfBytes,extractPage};
 if(typeof module==='object'&&module.exports)module.exports=api;
 if(!root.document)return;
 const doc=root.document;
@@ -135,10 +137,18 @@ function renderLinked(host){
  if(duplicate)host.append(el('p','같은 주소의 조사표가 여러 장입니다. 고유번호·면적·구조를 대조한 뒤 해당 보고서를 선택하세요.','report-note'));
  for(const r of matches)host.append(recordCard(r));
 }
+function criteriaCard(r){
+ const section=el('section',undefined,'report-field-checks');section.append(el('h4','2025년 현장조사 체크 기록'));
+ if(!r.fieldCriteria){section.append(el('p','체크기록이 포함된 최신 상세대장 JSON을 선택하면 자동 표시됩니다.','report-note'));return section;}
+ const checks=r.fieldCriteria.checks,makeTable=keys=>{const table=el('table');for(const key of keys){const tr=el('tr'),v=checks[key],status=el('td',v===true?'원본 체크':v===false?'원본 미체크':'판독 불가');status.className=v===true?'field-check-on':v===false?'field-check-off':'field-check-unknown';tr.append(el('th',FIELD_CHECKS[key]),status);table.append(tr);}return table;};
+ section.append(el('p','현장조사서 '+r.fieldCriteria.page+'쪽 · 고유번호 '+r.id,'report-note'),makeTable(['minor_physical_damage','minor_waste','minor_locked','major_meter_removed','minor_gas_stopped']));
+ const all=el('details');all.append(el('summary','빈집 판별 체크항목 전체 보기'),makeTable(Object.keys(FIELD_CHECKS)));section.append(all,el('p','빈집 판별을 위한 조사 당시 체크입니다. 미체크는 정상·안전 또는 해당 없음 판정이 아닙니다. 파손 항목은 창호·지붕·외벽 등이 묶인 항목이며 부위별 안전등급을 뜻하지 않습니다. 진술의 상세 내용은 표시하지 않습니다.','report-note'));return section;
+}
 function recordCard(r){
  const card=el('details',undefined,'report-record');card.open=true;
  card.append(el('summary','고유번호 '+r.id+' · '+r.grade+' · '+r.page+'쪽'));
  card.append(el('p',r.address));
+ if(new URL(root.location.href).searchParams.get('view')==='reuse')card.append(criteriaCard(r));
  const dl=el('dl');
  const fields=[['현장조사일',r.fieldSurveyDate],['등급산정일',r.gradeSurveyDate],['주택유형',r.type],['사용승인연도',r.approvalYear],['대지면적',r.landArea===null?null:r.landArea+' ㎡'],['건축면적',r.buildingArea===null?null:r.buildingArea+' ㎡'],['연면적',r.totalArea===null?null:r.totalArea+' ㎡'],['층수',r.floors],['구조',r.structure],['지붕',r.roof],['미거주 기간',r.vacancyPeriod],['발생 원인',r.vacancyCause],['향후 활용의향',r.reuseIntent],['공개 동의 의향',r.disclosureIntent]];
  for(const [k,v]of fields)dl.append(el('dt',k),el('dd',textValue(v)));card.append(dl);
@@ -236,6 +246,6 @@ function init(){
  refresh();restorePdf();restoreField();
  root.addEventListener('storage',e=>{if(e.key===storeKey){try{dataset=e.newValue?validateDataset(JSON.parse(e.newValue)):null;metadataRequest++;selectionSerial++;pdfLoading=false;sourcePdf=null;closeViewer();setStatus(dataset?'다른 탭의 상세대장 반영 · '+dataset.records.length+'건':'상세대장 기억이 해제됐습니다.');pdfFileMemory=null;pdfStatusEl.textContent='저장 PDF를 확인합니다.';refresh();restorePdf();restoreField();}catch{setStatus('변경된 상세대장을 읽지 못했습니다.');}}});
 }
-root.VacancyReports={...api,mount};
+root.VacancyReports={...api,mount,find:addresses=>dataset?lookupRecords(dataset,addresses):[]};
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(typeof window!=='undefined'?window:globalThis);

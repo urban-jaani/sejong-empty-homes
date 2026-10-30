@@ -15,3 +15,11 @@ body.layout-shell .dashboard-grid,body.layout-shell .workspace,body.layout-shell
 @media(max-width:900px){body.layout-shell .dashboard-grid,body.layout-shell .workspace,body.layout-shell>.grid{grid-template-columns:180px minmax(0,1fr)}.layout-right{grid-column:1/-1;max-height:none}.layout-center #sejongMap,.layout-center #comparisonMap,.layout-center #map{height:540px}.layout-left{max-height:650px}.layout-result-tabs{position:static}.layout-header h1{font-size:23px}}
 @media(max-width:620px){body.layout-shell{padding:12px;font-size:13px}.layout-header{gap:10px}.layout-header h1{font-size:21px}.layout-heading>p{font-size:11px!important}.layout-data-button{font-size:12px!important;padding:7px 10px!important}body.layout-shell .dashboard-grid,body.layout-shell .workspace,body.layout-shell>.grid{grid-template-columns:1fr}.layout-right{grid-column:auto}.layout-left{max-height:none}.layout-left .region-buttons,.layout-left .regions{grid-template-columns:repeat(3,minmax(0,1fr))}.layout-center #sejongMap,.layout-center #comparisonMap,.layout-center #map{height:460px}.layout-statbar strong{font-size:20px!important}.layout-statbar .card,.layout-statbar .count{padding:9px!important}.layout-statbar span{font-size:11px!important}.layout-data-dialog{width:calc(100vw - 16px);max-width:none;margin:8px;height:calc(100vh - 16px);max-height:none;border-radius:10px}.layout-house-fields{grid-template-columns:1fr 1fr}}
 @media(pointer:coarse){.layout-left button,.layout-result-tabs button,.layout-header button{min-height:40px}.layout-data-dialog input,.layout-data-dialog select{font-size:16px}}
+/* 빈집조사 상세목록을 현재 너비의 1/3로 */
+.layout-list {
+  width: 33.333%;
+}
+
+.layout-list .list-panel {
+  overflow-x: auto;
+}

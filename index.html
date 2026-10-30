@@ -278,6 +278,7 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./spatial-landuse-api.js"></script>
 <script defer src="./sgis-census.js"></script>
 <script defer src="./neighborhood.js"></script>
+<script defer src="./flood-layer.js"></script>
 <script defer src="./reuse-filter.js"></script>
 </head>
 
@@ -840,6 +841,15 @@ function selectMapRegion(region) {
   document.getElementById('pointDetails').textContent='선택 조건이 바뀌었습니다. 지도에서 빈집 점을 선택하세요.';document.getElementById('reuseDetails').textContent='선택 조건이 바뀌었습니다. 지도에서 빈집 점을 다시 선택하세요.';if(typeof spatialHighlight!=='undefined'&&spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}
   renderResults();
 }
+let floodTraceLayer=null,floodTraceFeatures=null;
+function renderFloodTraces(){
+ if(!liveMap||!window.L||new URLSearchParams(location.search).get('view')!=='reuse')return;
+ if(floodTraceLayer){liveMap.removeLayer(floodTraceLayer);floodTraceLayer=null;}
+ if(!floodTraceFeatures)return;
+ if(!liveMap.getPane('floodTraces')){liveMap.createPane('floodTraces');liveMap.getPane('floodTraces').style.zIndex=420;liveMap.getPane('floodTraces').style.pointerEvents='none';}
+ floodTraceLayer=L.geoJSON(floodTraceFeatures,{pane:'floodTraces',interactive:false,style:{color:'#2468ae',weight:1.5,fillColor:'#4396d6',fillOpacity:0.3}}).addTo(liveMap);
+}
+window.addEventListener('vacancy-flood-layer',event=>{floodTraceFeatures=event.detail;renderFloodTraces();});
 function initializeMap() {
   if(liveMap || typeof L==='undefined')return;
   liveMap=L.map('sejongMap',{minZoom:7,maxZoom:19,scrollWheelZoom:false,zoomControl:false,zoomSnap:1,zoomDelta:1});
@@ -877,6 +887,7 @@ function initializeMap() {
   document.getElementById('connectBase').disabled=false;
   updateMap();
   restoreBaseKey();
+  renderFloodTraces();
 }
 function updateMap() {
   if(!liveMap)return;

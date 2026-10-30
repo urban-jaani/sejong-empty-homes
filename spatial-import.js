@@ -52,7 +52,13 @@ async function init(){if(!reuseTabMode)return;const left=doc.querySelector('.das
  panel.append(type,dateLabel,file,opts,load,status,preview,inventory,rl,check,auditBox,links);left.append(panel);
  for(const t of Object.keys(core.TYPES)){const version=mutations[t]||0;try{const data=await cache('get',t);if((mutations[t]||0)===version&&data?.version===1&&data.type===t){datasets[t]=core.prepare(t,data.rows,data.meta);refresh();}}catch{status.textContent='일부 저장자료를 복원하지 못했습니다. 해당 파일을 다시 선택하세요.';}}
 }
-function focus(target){if(!reuseTabMode)return;const res=core.resolve(datasets,target),shapes=[];for(const kind of ['parcel','building'])if(res[kind].status==='single')for(const row of res[kind].rows)if(row.geometry)shapes.push({geometry:row.geometry,kind});root.dispatchEvent(new CustomEvent('vacancy-spatial-focus',{detail:{shapes,point:res.point}}));}
-root.VacancySpatial={focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+function focus(target){if(!reuseTabMode)return;const res=core.resolve(datasets,target),shapes=[];for(const kind of ['parcel','building'])if(res[kind].status==='single')for(const row of res[kind].rows)if(row.geometry)shapes.push({geometry:row.geometry,kind});root.dispatchEvent(new CustomEvent('vacancy-spatial-focus',{detail:{shapes,point:res.point,pnu:res.pnu,address:target.address}}));}
+async function connectLand(records){
+ if(datasets.land&&!datasets.land.meta.api)throw Error('토지특성 파일이 이미 연결돼 있습니다. 파일 연결을 해제한 뒤 API 자료를 적용하세요.');
+ const rows=records.map(props=>core.normalizeRow(props,core.detect(Object.keys(props),'land')));if(rows.some(r=>!r.pnu))throw Error('토지정보에 올바른 PNU가 없습니다.');
+ const pnus=new Set(rows.map(r=>r.pnu)),merged=[...(datasets.land?.rows||[]).filter(r=>!pnus.has(r.pnu)),...rows];const meta={name:'브이월드 토지특성 API',asOf:'응답별 기준연도 참조',api:true,loadedAt:new Date().toISOString(),saved:false};
+ mutations.land=(mutations.land||0)+1;const data=core.prepare('land',merged,meta);try{await cache('put','land',{version:1,type:'land',rows:merged,meta:{...meta,saved:true}});data.meta.saved=true;}catch{}datasets.land=data;refresh();return data.meta.saved;
+}
+root.VacancySpatial={connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(window);

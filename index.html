@@ -6,6 +6,7 @@
   <title>세종시 빈집 현황판</title>
 
  <style>
+  [data-category="reuse"][hidden], #reusePanel[hidden], #spatialImportPanel[hidden] { display:none !important; }
   .bar-track {
     background: #e7eee3;
     border-radius: 6px;
@@ -288,7 +289,7 @@ summary { cursor:pointer; font-weight:bold; }
 </nav>
 <p id="yearNotice" class="year-notice" role="status"></p>
 <main class="dashboard-grid">
-<aside class="dashboard-left" aria-label="카테고리와 지역 선택"><h2>빈집 현황 보기</h2><nav class="category-buttons" aria-label="통계 카테고리"><button type="button" data-category="all" aria-pressed="false">전체 요약</button><button type="button" data-category="type" aria-pressed="false">주택유형 현황</button><button type="button" data-category="grade" aria-pressed="false">등급 현황</button><button type="button" data-category="approval" aria-pressed="false">사용승인 현황</button><button type="button" data-category="area" aria-pressed="false">면적 기초통계</button><button type="button" data-category="reuse" aria-pressed="false">활용 검토표</button><button type="button" data-category="point" aria-pressed="false">선택한 빈집 상세</button></nav>
+<aside class="dashboard-left" aria-label="카테고리와 지역 선택"><h2>빈집 현황 보기</h2><nav class="category-buttons" aria-label="통계 카테고리"><button type="button" data-category="all" aria-pressed="false">전체 요약</button><button type="button" data-category="type" aria-pressed="false">주택유형 현황</button><button type="button" data-category="grade" aria-pressed="false">등급 현황</button><button type="button" data-category="approval" aria-pressed="false">사용승인 현황</button><button type="button" data-category="area" aria-pressed="false">면적 기초통계</button><button type="button" hidden data-category="reuse" aria-pressed="false">활용 검토표</button><button type="button" data-category="point" aria-pressed="false">선택한 빈집 상세</button></nav>
 <h3 id="gradeFilterLabel">조회 등급</h3><div id="gradeFilters" class="region-buttons" role="group" aria-labelledby="gradeFilterLabel"><button type="button" class="region-button" data-grade="all" aria-pressed="true">전체 등급</button><button type="button" class="region-button" data-grade="1" aria-pressed="false">🟢 1등급</button><button type="button" class="region-button" data-grade="2" aria-pressed="false">🟡 2등급</button><button type="button" class="region-button" data-grade="3" aria-pressed="false">🟠 3등급</button><button type="button" class="region-button" data-grade="4" aria-pressed="false">🔴 4등급</button><button type="button" class="region-button" data-grade="unknown" aria-pressed="false">신규·미기재·기타</button></div><p style="font-size:11px;color:#607168">여러 등급을 선택할 수 있습니다. 다시 누르면 해제됩니다. 모두 해제하면 전체 등급을 표시합니다. (구)등급은 같은 숫자에 포함합니다.</p>
   <span id="regionLabel">조회 지역 · 복수 선택</span><p style="font-size:11px;color:#607168">다시 누르면 해제됩니다. 모두 해제하면 세종 전체를 표시합니다.</p>
   <div id="regionButtons" class="region-buttons"
@@ -1216,8 +1217,9 @@ updateStorageStatus(restoreErrors.length
 <script>
 let activeCategory='all';
 function selectCategory(category){
+  if(category==='reuse'&&new URLSearchParams(location.search).get('view')!=='reuse')category='all';
   activeCategory=category;
-  if(window.VacancySpatial)window.VacancySpatial.setVisible(category==='reuse');
+  if(window.VacancySpatial)window.VacancySpatial.setVisible(new URLSearchParams(location.search).get('view')==='reuse');
   for(const button of document.querySelectorAll('[data-category]'))button.setAttribute('aria-pressed',String(button.dataset.category===category));
   const show=(id,visible)=>document.getElementById(id).hidden=!visible;
   show('vacancyStory',category==='all');
@@ -1234,6 +1236,7 @@ function selectCategory(category){
 }
 for(const button of document.querySelectorAll('[data-category]'))button.addEventListener('click',()=>selectCategory(button.dataset.category));
 const reuseMode=new URLSearchParams(location.search).get('view')==='reuse';
+document.querySelector('[data-category="reuse"]').hidden=!reuseMode;
 if(reuseMode){for(const a of document.querySelectorAll('#surveyTabs a'))a.removeAttribute('aria-current');document.getElementById('reuseTab').setAttribute('aria-current','page');}
 selectCategory(reuseMode?'reuse':'all');
 

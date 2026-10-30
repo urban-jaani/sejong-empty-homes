@@ -22,6 +22,8 @@ body>h1 { margin:0; font-size:27px; color:#21664f; line-height:1.65; }
 </style><link rel="stylesheet" href="./report-details.css">
 <script defer src="./pdf-lib.min.js"></script>
 <script defer src="./report-details.js"></script>
+<link rel="stylesheet" href="./layout-shell.css">
+<script defer src="./layout-shell.js"></script>
 </head><body>
 <h1>세종시 빈집 현황판</h1>
 <p class="dashboard-subtitle">세종시 빈집은 어디에 많을까?</p>
@@ -82,6 +84,7 @@ function readCoordinates(year,items){
 }
 function selectedEntries(){return entries.filter(e=>(!categories.size||categories.has(e.status))&&(!regions.size||e.regions.some(r=>regions.has(r))));}
 function showDetail(entry){
+ window.VacancyLayout?.showExternalDetail();
   const box=get('details');box.replaceChildren();
   const title=document.createElement('h3');title.textContent=entry.address;box.append(title);
   const badge=document.createElement('p');badge.textContent=labels[entry.status];badge.style.color=colors[entry.status];box.append(badge);
@@ -201,4 +204,4 @@ function apply(){canvas.classList.toggle('gray-background',choice.value==='gray'
 choice.value='gray';try{if(localStorage.getItem(key)==='normal')choice.value='normal';}catch{}apply();
 choice.addEventListener('change',()=>{apply();try{localStorage.setItem(key,choice.value);}catch{}});
 window.addEventListener('storage',event=>{if(event.key===key){choice.value=event.newValue==='normal'?'normal':'gray';apply();}});
-})();</script></body></html>
+})();</script><script>window.VacancyLayoutGetMap=()=>map;</script></body></html>

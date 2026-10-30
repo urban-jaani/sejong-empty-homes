@@ -285,6 +285,8 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./flood-layer.js"></script>
 <script defer src="./use-review.js"></script>
 <script defer src="./reuse-filter.js"></script>
+<link rel="stylesheet" href="./layout-shell.css">
+<script defer src="./layout-shell.js"></script>
 </head>
 
 <body>
@@ -431,7 +433,7 @@ summary { cursor:pointer; font-weight:bold; }
     <div style="overflow-x:auto"><table><thead><tr><th>항목</th><th>평균 면적</th><th>평균 산정 기록</th><th>0㎡ 제외</th><th>미기재·오류 제외</th></tr></thead><tbody id="areaStats"></tbody></table></div></details>
     </div><p class="stats-note">평균은 항목별 0보다 큰 면적의 합계를 해당 기록 수로 나눈 값입니다. 0㎡·미기재·오류는 제외합니다. 비율은 선택 지역·등급에 해당하는 조사 기록을 기준으로 하며 반올림으로 합이 다를 수 있습니다. 같은 주소의 반복 조사도 포함합니다. 등급은 원본 표기를 유지합니다.</p>
   </section>
-<section id="reusePanel" hidden><h3>빈집별 활용 검토표</h3><p>다운로드한 공간·속성자료를 왼쪽에서 불러온 뒤 지도에서 빈집 점을 선택하세요.</p><div id="reuseDetails"><p>활용 점수와 철거 판정은 아직 산정하지 않습니다.</p></div><details><summary>다음에 연결할 자료</summary><ul><li>필지 경계·면적·용도지역: 토지 조건 확인</li><li>도로 경계·현장 진입 조사: 접도와 차량 진입 확인</li><li>정류장·생활시설 위치: 접근성 분석</li><li>생활인구·연령별 인구: 용도별 이용 수요 분석</li><li>구조 안전 진단·수선비·소유자 의사: 실행 가능성 확인</li></ul></details></section><section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">빈집 점을 누르면 주소와 상세정보가 나타납니다.</div>
+<section id="reusePanel" hidden><h3>빈집별 활용 검토표</h3><p>상단 자료관리에서 자료를 연결한 뒤 지도에서 빈집 점을 선택하세요.</p><div id="reuseDetails"><p>지도에서 빈집을 선택하면 연결된 보고서와 원자료를 확인합니다.</p></div><details><summary>다음에 연결할 자료</summary><ul><li>필지 경계·면적·용도지역: 토지 조건 확인</li><li>도로 경계·현장 진입 조사: 접도와 차량 진입 확인</li><li>정류장·생활시설 위치: 접근성 분석</li><li>생활인구·연령별 인구: 용도별 이용 수요 분석</li><li>구조 안전 진단·수선비·소유자 의사: 실행 가능성 확인</li></ul></details></section><section id="pointPanel"><h3>선택한 빈집 상세</h3>    <div id="pointDetails" class="map-note" role="status">빈집 점을 누르면 주소와 상세정보가 나타납니다.</div>
 </section></aside>
 </main>
 <section class="list-panel"><h2>빈집 조사 상세 목록</h2>
@@ -712,6 +714,7 @@ function renderResults() {
     tr.append(nameCell, countCell, chartCell);
     regionTable.append(tr);
   }
+  window.VacancyLayout?.onResults();
 }
 
 // 엑셀에 있는 지역을 버튼으로 모두 표시합니다.
@@ -845,6 +848,7 @@ function selectMapRegion(region) {
   else if(selectedRegions.has(region))selectedRegions.delete(region);else selectedRegions.add(region);
   for(const button of regionButtons.children)button.setAttribute('aria-pressed',String(regionPressed(button.dataset.region)));
   document.getElementById('pointDetails').textContent='선택 조건이 바뀌었습니다. 지도에서 빈집 점을 선택하세요.';document.getElementById('reuseDetails').textContent='선택 조건이 바뀌었습니다. 지도에서 빈집 점을 다시 선택하세요.';if(typeof spatialHighlight!=='undefined'&&spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}
+  window.dispatchEvent(new CustomEvent('vacancy-selection-cleared'));
   renderResults();
 }
 let floodTraceLayer=null,floodTraceFeatures=null;
@@ -1020,14 +1024,14 @@ function renderReuseDetails(points){
  row('조사연도',r.surveyYear);row('빈집 등급',r.grade);row('주택유형',r.type);row('사용승인일자·연도',r.approvalDate);
  for(const [label,key]of [['건축면적','buildingArea'],['대지면적','landArea'],['연면적','totalArea']]){const v=r[key];row(label,known(v)?v+' ㎡':null,known(v)&&Number(v)===0?'0 기재 · 원자료 확인':undefined);}
  for(const [label,reason]of [['구조 안전성','별도 안전 진단 필요'],['교통·생활시설 접근성','시설·보행경로 자료 필요'],['지역 수요','생활인구·배후인구 자료 필요'],['소유자 활용 의사·수선비','면담·비용 조사 필요']])row(label,reason,'추가 확인');
- card.append(table,node('p','등급·연도·면적은 조사자료의 기재값입니다. 구조 안전성, 신축 허용 여부, 사업성을 확인한 결과가 아닙니다.'));
- const conditionHost=document.createElement('div');if(window.VacancySpatial){const matchingPoints=points.filter(p=>normalizeAddress(p.address)===normalizeAddress(r.address));const pos=matchingPoints[0];window.VacancySpatial.mount(conditionHost,{...r,longitude:pos?.longitude,latitude:pos?.latitude});}card.append(conditionHost);
- const report=document.createElement('div');if(window.VacancyReports)window.VacancyReports.mount(report,[r.address]);card.append(report);
+ const baseDetails=document.createElement('details');baseDetails.className='layout-record-base';baseDetails.append(node('summary','기초조사·외부 연결 원자료'));baseDetails.append(table,node('p','등급·연도·면적은 조사자료의 기재값입니다. 구조 안전성, 신축 허용 여부, 사업성을 확인한 결과가 아닙니다.'));card.append(baseDetails);
+ const conditionHost=document.createElement('div');if(window.VacancySpatial){const matchingPoints=points.filter(p=>normalizeAddress(p.address)===normalizeAddress(r.address));const pos=matchingPoints[0];window.VacancySpatial.mount(conditionHost,{...r,longitude:pos?.longitude,latitude:pos?.latitude});}baseDetails.append(conditionHost);
+ const report=document.createElement('div');report.className='layout-report-host';if(window.VacancyReports)window.VacancyReports.mount(report,[r.address]);card.append(report);
  host.append(card);
  });
 }
 
-window.VacancySpatialBridge={refreshView(clear=false){if(clear){document.getElementById('reuseDetails').textContent='조건이 바뀌었습니다. 지도에서 빈집을 선택하세요.';document.getElementById('pointDetails').textContent='지도에서 빈집을 선택하세요.';if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}}renderResults();},records(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));return allRecords.map(r=>({...r,longitude:coords.get(normalizeAddress(r.address))?.longitude,latitude:coords.get(normalizeAddress(r.address))?.latitude}));},targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
+window.VacancySpatialBridge={visibleRecords(){return allRecords.filter(r=>matchesGrade(r)&&matchesRegion(r.region));},refreshView(clear=false){if(clear){window.dispatchEvent(new CustomEvent('vacancy-selection-cleared'));document.getElementById('reuseDetails').textContent='조건이 바뀌었습니다. 지도에서 빈집을 선택하세요.';document.getElementById('pointDetails').textContent='지도에서 빈집을 선택하세요.';if(spatialHighlight&&liveMap){liveMap.removeLayer(spatialHighlight);spatialHighlight=null;}}renderResults();},records(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));return allRecords.map(r=>({...r,longitude:coords.get(normalizeAddress(r.address))?.longitude,latitude:coords.get(normalizeAddress(r.address))?.latitude}));},targets(){const coords=new Map(coordinateRecords.map(p=>[normalizeAddress(p.address),p]));const unique=new Map();for(const r of allRecords){const key=normalizeAddress(r.address);if(!unique.has(key))unique.set(key,{...r,longitude:coords.get(key)?.longitude,latitude:coords.get(key)?.latitude});}return [...unique.values()];}};
 let spatialHighlight=null;
 window.addEventListener('vacancy-spatial-highlight',event=>{if(!liveMap||!window.L)return;if(spatialHighlight)liveMap.removeLayer(spatialHighlight);spatialHighlight=L.featureGroup().addTo(liveMap);for(const row of event.detail){L.geoJSON({type:'Feature',properties:{},geometry:row.geometry},{interactive:false,style:{color:row.kind==='parcel'?'#21664f':'#7e42a8',weight:2,fillOpacity:0.12}}).addTo(spatialHighlight);}if(spatialHighlight.getLayers().length)liveMap.fitBounds(spatialHighlight.getBounds(),{padding:[40,40],maxZoom:18});});
 window.addEventListener('vacancy-spatial-focus',event=>{
@@ -1044,6 +1048,7 @@ function showPointDetails(points) {
   renderReuseDetails(points);
   selectCategory(activeCategory==='reuse'||new URLSearchParams(location.search).get('view')==='reuse'?'reuse':'point');
   if(new URLSearchParams(location.search).get('view')==='reuse'&&window.VacancySpatial&&points[0])window.VacancySpatial.focus(points[0]);
+  const selectedAddresses=new Set(points.map(p=>normalizeAddress(p.address)));window.dispatchEvent(new CustomEvent('vacancy-house-selected',{detail:{points,records:allRecords.filter(r=>selectedAddresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&matchesRegion(r.region))}}));
 }
 
 function renderPoints() {
@@ -1062,8 +1067,7 @@ function renderPoints() {
     visibleLocations++;visibleRecords+=points.length;
     const marker=L.circleMarker([first.latitude,first.longitude],{pane:'houses',radius:4,weight:1,color:gradeStyle.stroke,fillColor:gradeStyle.fill,fillOpacity:1,bubblingMouseEvents:false});
     const tip=document.createElement('span');tip.textContent=first.address+' · '+gradeStyle.original+(points.length>1?' · 같은 위치 '+points.length+'건':'');marker.bindTooltip(tip);
-    marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360})
-      .on('click',()=>showPointDetails(points));marker.addTo(pointLayer);
+    marker.on('click',()=>{showPointDetails(points);if(!window.VacancyLayout)marker.bindPopup(()=>createHouseDetails(points),{maxWidth:380,maxHeight:360}).openPopup();else marker.closePopup?.();});marker.addTo(pointLayer);
   }
   status.textContent=coordinateLoaded?'선택 지역 좌표 기록 '+visibleRecords+'건 · 서로 다른 위치 '+visibleLocations+'곳 · 점은 확대해도 반지름 4px로 유지됩니다.'+(hiddenGray?' · 등급 미확인·주소 미연결 좌표 '+hiddenGray+'건은 지도에서 숨겼습니다.':'')+(coordinateRejected?' 제외 기록 '+coordinateRejected+'건.':''):'좌표를 불러오면 빈집 위치에 점이 나타납니다.';
 }
@@ -1258,6 +1262,7 @@ function selectCategory(category){
   show('areaPanel',category==='all'||category==='area');
   show('pointPanel',category==='all'||category==='point');
   document.getElementById('rightCategoryTitle').textContent={all:'전체 요약',type:'주택유형 현황',grade:'등급 현황',approval:'사용승인 현황',area:'면적 기초통계',point:'선택한 빈집 상세',reuse:'활용 가능성 · 근거 검토'}[category];
+  window.VacancyLayout?.onCategory(category);
   document.querySelector('.dashboard-right').scrollTop=0;
 }
 for(const button of document.querySelectorAll('[data-category]'))button.addEventListener('click',()=>selectCategory(button.dataset.category));

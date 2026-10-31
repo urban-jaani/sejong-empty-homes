@@ -287,8 +287,8 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./reuse-filter.js"></script>
 <link rel="stylesheet" href="./layout-shell.css">
 <script defer src="./layout-shell.js"></script>
-<link rel="stylesheet" href="./three-d-map.css">
-<script defer src="./three-d-map.js"></script>
+<link rel="stylesheet" href="./street-view.css">
+<script defer src="./street-view.js"></script>
 </head>
 
 <body>
@@ -717,7 +717,6 @@ function renderResults() {
     regionTable.append(tr);
   }
   window.VacancyReuseFilter?.onResults();
-  window.Vacancy3DMap?.refresh();
   window.VacancyLayout?.onResults();
 }
 
@@ -865,7 +864,6 @@ function renderFloodTraces(){
 }
 window.addEventListener('vacancy-flood-layer',event=>{floodTraceFeatures=event.detail;renderFloodTraces();});
 window.VacancyNeighborhoodMapBridge={getMap:()=>liveMap};
-window.addEventListener('vacancy-3d-pick',event=>{const address=normalizeAddress(event.detail?.address);const points=coordinateRecords.filter(p=>normalizeAddress(p.address)===address&&matchesRegion(p.region));if(points.length)showPointDetails(points);});
 function initializeMap() {
   if(liveMap || typeof L==='undefined')return;
   liveMap=L.map('sejongMap',{minZoom:7,maxZoom:19,scrollWheelZoom:false,zoomControl:false,zoomSnap:1,zoomDelta:1});
@@ -998,6 +996,7 @@ function createHouseDetails(points) {
   const addresses=new Set(points.map(p=>normalizeAddress(p.address)));
   const matches=allRecords.filter(r=>addresses.has(normalizeAddress(r.address))&&matchesGrade(r)&&(matchesRegion(r.region)));
   const heading=document.createElement('strong');heading.textContent='빈집 조사 상세 · '+matches.length+'건';box.append(heading);
+  window.VacancyStreetView?.mount(box,points.length?points:matches);
   const display=value=>value===undefined||value===null||String(value).trim()===''?'미기재':String(value);
   const area=value=>{const text=display(value);return text==='미기재'?(activeYear==='2021'?'원본 자료 없음':text):text+' ㎡';};
   matches.forEach((record,index)=>{
@@ -1021,6 +1020,7 @@ function renderReuseDetails(points){
  const node=(tag,text)=>{const e=document.createElement(tag);e.textContent=text;return e;};
  if(!records.length){host.append(node('p','선택 조건에 맞는 조사기록이 없습니다.'));return;}
  host.append(node('p','선택한 '+activeYear+'년 파일의 조사기록 '+records.length+'건. 같은 주소의 여러 기록은 각각 확인하세요.'));
+ window.VacancyStreetView?.mount(host,points);
  const known=v=>v!==null&&v!==undefined&&String(v).trim()!==''&&String(v)!=='미기재';
  records.forEach((r,i)=>{
  const card=document.createElement('section');card.className='report-record';card.append(node('h4',(i+1)+'. '+r.address));

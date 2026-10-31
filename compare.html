@@ -24,6 +24,8 @@ body>h1 { margin:0; font-size:27px; color:#21664f; line-height:1.65; }
 <script defer src="./report-details.js"></script>
 <link rel="stylesheet" href="./layout-shell.css">
 <script defer src="./layout-shell.js"></script>
+<link rel="stylesheet" href="./street-view.css">
+<script defer src="./street-view.js"></script>
 </head><body>
 <h1>세종시 빈집 현황판</h1>
 <p class="dashboard-subtitle">세종시 빈집은 어디에 많을까?</p>
@@ -83,10 +85,11 @@ function readCoordinates(year,items){
   }catch{return year+'년 좌표를 읽지 못함';}
 }
 function selectedEntries(){return entries.filter(e=>(!categories.size||categories.has(e.status))&&(!regions.size||e.regions.some(r=>regions.has(r))));}
-function showDetail(entry){
+function showDetail(entry,point=null){
  window.VacancyLayout?.showExternalDetail();
   const box=get('details');box.replaceChildren();
   const title=document.createElement('h3');title.textContent=entry.address;box.append(title);
+  window.VacancyStreetView?.mount(box,(point?[point]:entry.locations.length?entry.locations:[{}]).map(p=>({...p,address:entry.address})));
   const badge=document.createElement('p');badge.textContent=labels[entry.status];badge.style.color=colors[entry.status];box.append(badge);
   for(const [year,rows] of [['2021',entry.old],['2026',entry.recent]]){
     const heading=document.createElement('h4');heading.textContent=year+'년 자료 · '+rows.length+'건';box.append(heading);
@@ -102,7 +105,7 @@ function drawPoints(shown){
   for(const entry of shown)for(const point of entry.locations){
     const marker=L.circleMarker([point.latitude,point.longitude],{pane:'comparisonPoints',radius:4,stroke:true,weight:1,color:'#505a60',fillColor:colors[entry.status],fillOpacity:1});
     const tip=document.createElement('span');tip.textContent=entry.address+' · '+labels[entry.status]+' · '+point.years.join('·')+'년 좌표';
-    marker.bindTooltip(tip).on('click',()=>showDetail(entry)).addTo(pointLayer);
+    marker.bindTooltip(tip).on('click',()=>showDetail(entry,point)).addTo(pointLayer);
   }
 }
 function render(){

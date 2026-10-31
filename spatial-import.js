@@ -101,9 +101,7 @@ async function connectLand(records){
  const pnus=new Set(rows.map(r=>r.pnu)),merged=[...(datasets.land?.rows||[]).filter(r=>!pnus.has(r.pnu)),...rows];const meta={name:'브이월드 토지특성 API',asOf:'응답별 기준연도 참조',api:true,loadedAt:new Date().toISOString(),saved:false};
  mutations.land=(mutations.land||0)+1;const data=core.prepare('land',merged,meta);try{await cache('put','land',{version:1,type:'land',rows:merged,meta:{...meta,saved:true}});data.meta.saved=true;}catch{}datasets.land=data;refresh();return data.meta.saved;
 }
-let sceneRestore=null;
-async function sceneBuildings(query){if(!reuseTabMode&&!datasets.building){if(!sceneRestore)sceneRestore=cache('get','building').then(data=>{if(data?.version===1&&data.type==='building')datasets.building=core.prepare('building',data.rows,data.meta);}).catch(()=>{});await sceneRestore;}if(!root.VacancyBuildingScene)return{status:'missing',rows:[],message:'건물 입체표현 도구가 없습니다.'};return root.VacancyBuildingScene.select(datasets.building,query);}
-root.VacancySpatial={sceneBuildings,zoningTargets,connectZoning,resolve:target=>core.resolve(datasets,target),landTargets,connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
+root.VacancySpatial={zoningTargets,connectZoning,resolve:target=>core.resolve(datasets,target),landTargets,connectLand,focus,mount:(host,target)=>{if(reuseTabMode)mount(host,target);},setVisible:visible=>{if(panel)panel.hidden=!(reuseTabMode&&visible);}};
 root.addEventListener?.('vacancy-report-data-changed',()=>{dataRevision++;});
 if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',init);else init();
 })(window);

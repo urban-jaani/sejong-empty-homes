@@ -37,3 +37,11 @@ body.layout-shell .archive-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:-3px 
 body.layout-shell .archive-tabs a{font-family:inherit;font-size:12px;line-height:1.5;padding:6px 13px;border:1px solid #c9d8ce;border-radius:5px;color:#416754;text-decoration:none;background:white}
 body.layout-shell .archive-tabs a[aria-current=page]{background:#edf3ee;border-color:#21664f;color:#21664f;font-weight:700}
 body.layout-shell .archive-tabs[hidden]{display:none!important}
+
+/* Readable filter groups and full-width maintenance records. */
+body.layout-shell .layout-left h2.layout-region-heading{margin-top:24px;margin-bottom:10px}
+body.layout-shell[data-layout-page=demolition]>.layout-list{width:100%;max-width:100%}
+body.layout-shell[data-layout-page=demolition] .demolition-record-table{width:100%;table-layout:fixed}
+body.layout-shell[data-layout-page=demolition] .demolition-record-table th,body.layout-shell[data-layout-page=demolition] .demolition-record-table td{white-space:normal;overflow-wrap:anywhere;padding:9px 7px}
+body.layout-shell[data-layout-page=demolition] .demolition-record-table .demolition-match-address{white-space:pre-line;min-width:0}
+@media(max-width:700px){body.layout-shell[data-layout-page=demolition] .demolition-record-table{min-width:900px}}

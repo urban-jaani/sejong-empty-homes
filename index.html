@@ -289,18 +289,22 @@ summary { cursor:pointer; font-weight:bold; }
 <script defer src="./layout-shell.js"></script>
 <link rel="stylesheet" href="./street-view.css">
 <script defer src="./street-view.js"></script>
+<script defer src="./inline-street-view.js"></script>
 </head>
 
 <body>
   <h1>세종시 빈집 현황판</h1>
   <p>세종시 빈집은 어디에 많을까?</p>
 
-<nav id="surveyTabs" class="survey-tabs" aria-label="조사자료 선택">
- <a href="?year=2026" data-year="2026">2026년</a>
- <a href="?year=2021" data-year="2021">2021년</a>
- <a href="./compare.html">2021 ↔ 2026 비교</a>
- <a href="./demolition.html">철거 실적</a>
- <a href="?year=2026&amp;view=reuse" id="reuseTab">활용 가능성</a>
+<nav id="surveyTabs" class="survey-tabs" aria-label="현황판 주요 메뉴">
+ <a href="./?year=2026" data-main-section="archive" aria-current="page">빈집 아카이브</a>
+ <a href="./demolition.html" data-main-section="maintenance">정비노트</a>
+ <a href="./?year=2026&amp;view=reuse" data-main-section="reuse" id="reuseTab">빈집 레벨업</a>
+</nav>
+<nav id="archiveTabs" class="archive-tabs" aria-label="빈집 아카이브 자료">
+ <a href="./?year=2026" data-year="2026">2026년</a>
+ <a href="./?year=2021" data-year="2021">2021년</a>
+ <a href="./compare.html">비교</a>
 </nav>
 <p id="yearNotice" class="year-notice" role="status"></p>
 <main class="dashboard-grid">
@@ -1273,6 +1277,7 @@ function selectCategory(category){
 for(const button of document.querySelectorAll('[data-category]'))button.addEventListener('click',()=>selectCategory(button.dataset.category));
 const reuseMode=new URLSearchParams(location.search).get('view')==='reuse';
 document.querySelector('[data-category="reuse"]').hidden=!reuseMode;
+document.getElementById('archiveTabs').hidden=reuseMode;
 if(reuseMode){for(const a of document.querySelectorAll('#surveyTabs a'))a.removeAttribute('aria-current');document.getElementById('reuseTab').setAttribute('aria-current','page');}
 selectCategory(reuseMode?'reuse':'all');
 

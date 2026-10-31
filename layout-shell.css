@@ -31,3 +31,9 @@ body.layout-shell .layout-list>.layout-list-title{font-size:13px;font-weight:600
 .candidate-filter>label input[type=checkbox]{margin-left:8px}
 .candidate-result{padding:8px;background:#edf3ee;color:#21664f;font-weight:600;border-radius:5px}
 .candidate-filter>details{font-size:11px;color:#607168;margin-top:8px}
+
+/* Archive has its own subordinate year/comparison navigation. */
+body.layout-shell .archive-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:-3px 0 14px;padding:0 0 10px;border-bottom:1px solid #dbe5dd}
+body.layout-shell .archive-tabs a{font-family:inherit;font-size:12px;line-height:1.5;padding:6px 13px;border:1px solid #c9d8ce;border-radius:5px;color:#416754;text-decoration:none;background:white}
+body.layout-shell .archive-tabs a[aria-current=page]{background:#edf3ee;border-color:#21664f;color:#21664f;font-weight:700}
+body.layout-shell .archive-tabs[hidden]{display:none!important}

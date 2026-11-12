@@ -25,4 +25,48 @@
 .guideline-stages summary { cursor: pointer; font-weight: 700; }
 .guideline-review article { border-top: 1px solid #dbe5dc; padding-top: 8px; }
 
+#vacancyReviewPrint { display: none; }
+
+@media print {
+  @page vacancy-review { size: A4 portrait; margin: 12mm; }
+  html:has(#vacancyReviewPrint), body:has(> #vacancyReviewPrint) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body:has(> #vacancyReviewPrint) {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body:has(> #vacancyReviewPrint) > :not(#vacancyReviewPrint) { display: none !important; }
+  #vacancyReviewPrint {
+    page: vacancy-review;
+    display: block;
+    color: #15201a;
+    font-size: 9pt;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  #vacancyReviewPrint h1 { margin: 0 0 3mm; font-size: 17pt; color: #15201a; }
+  #vacancyReviewPrint h2 { margin: 3mm 0 1mm; font-size: 11pt; break-after: avoid; }
+  #vacancyReviewPrint p { margin: 0 0 1mm; }
+  #vacancyReviewPrint ul { margin: 0 0 2mm; padding-inline-start: 5mm; }
+  #vacancyReviewPrint table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 3mm 0; }
+  #vacancyReviewPrint tr { break-inside: avoid; }
+  #vacancyReviewPrint th, #vacancyReviewPrint td {
+    border: 1px solid #a9b6ac;
+    background: #fff;
+    color: inherit;
+    padding: 1.25mm 2mm;
+    text-align: left;
+    vertical-align: top;
+  }
+  #vacancyReviewPrint th:first-child { width: 21%; }
+  #vacancyReviewPrint td p:last-child { margin: 0; }
+  #vacancyReviewPrint .review-print-notes { min-height: 7mm; border-bottom: 1px solid #a9b6ac; }
+}
+
 .service-review-scope{font-size:11px;color:#21664f;font-weight:700}.service-review-card{border:1px solid #dbe5dc;border-radius:7px;padding:10px;margin:10px 0;background:#fafcf9}.service-review-card h4{margin:7px 0!important;font-size:13px!important}.service-review-card p,.service-review-card li,.service-review-card summary{font-size:11px;line-height:1.7}.service-review-card ul{padding-left:17px}.service-review-card button{font-size:11px!important}.service-review-badge{font-size:10px;display:inline-block;padding:2px 7px;border-radius:4px;background:#edf2ed;color:#526656}.service-review-badge.link{background:#e5f2e9;color:#23684a}.service-review-badge.investigate{background:#fff3df;color:#805917}.service-review-badge.hold{background:#edf0f3;color:#647082}

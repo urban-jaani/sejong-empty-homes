@@ -10,4 +10,19 @@
 
 .population-trend-region{display:block;font-size:11px;margin:10px 0}.population-trend-region select{width:100%;max-width:100%;padding:6px;border:1px solid #c6d8ca;border-radius:5px;background:#fff;font:inherit}
 
+.guideline-review {
+  padding: 12px;
+  margin: 12px 0;
+  border: 1px solid #cbded3;
+  border-radius: 7px;
+  background: #f6faf7;
+  overflow-wrap: anywhere;
+}
+.guideline-review h3 { margin-top: 0; }
+.guideline-priority { padding-inline-start: 18px; color: #784816; }
+.guideline-stages { list-style: none; padding: 0; }
+.guideline-stages li { border-top: 1px solid #dbe5dc; padding: 6px 0; }
+.guideline-stages summary { cursor: pointer; font-weight: 700; }
+.guideline-review article { border-top: 1px solid #dbe5dc; padding-top: 8px; }
+
 .service-review-scope{font-size:11px;color:#21664f;font-weight:700}.service-review-card{border:1px solid #dbe5dc;border-radius:7px;padding:10px;margin:10px 0;background:#fafcf9}.service-review-card h4{margin:7px 0!important;font-size:13px!important}.service-review-card p,.service-review-card li,.service-review-card summary{font-size:11px;line-height:1.7}.service-review-card ul{padding-left:17px}.service-review-card button{font-size:11px!important}.service-review-badge{font-size:10px;display:inline-block;padding:2px 7px;border-radius:4px;background:#edf2ed;color:#526656}.service-review-badge.link{background:#e5f2e9;color:#23684a}.service-review-badge.investigate{background:#fff3df;color:#805917}.service-review-badge.hold{background:#edf0f3;color:#647082}

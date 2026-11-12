@@ -56,6 +56,76 @@ function renderSizeCandidates(doc,model){
  else for(const candidate of plan.candidates){const card=el('article',undefined,'purpose-size-card');card.append(el('h4',candidate.title),el('p','검토 근거: '+candidate.reason),el('p',plan.flags.length?'현장 확인 우선 · 활용 적합성 미확정':'규모 기준 예비후보 · 활용 적합성 미확정','purpose-size-state'));const details=el('details');details.append(el('summary','제약·다음 확인사항'));const list=el('ul');for(const text of candidate.next)list.append(el('li',text));details.append(list);card.append(details);section.append(card);}
  const checks=el('details');checks.append(el('summary','공통 제약·미확인 사항'));const list=el('ul');for(const text of plan.constraints)list.append(el('li',text));checks.append(list);for(const key of ['grade','structure','usage']){const f=model.facts[key];if(f)checks.append(el('p',f.label+': '+f.value+(f.source?' · '+f.source:''),'spatial-note'));}checks.append(el('p','토지 활용은 별도 검토입니다. 필지면적·대지면적은 비어 있는 외부공간 면적이 아니며, 이 정보만으로 철거나 주차장 설치를 추천하지 않습니다.','spatial-note'));section.append(checks,el('p',plan.method,'spatial-note'));return section;
 }
+function reviewStages(input,facts,core){
+ const records=input.records||[],reports=input.reports||[],report=reports.length===1?reports[0]:null;
+ const grades=records.map(record=>norm(record.grade));
+ const priority=[];
+ const flaggedGrades=[...new Set(grades.filter(grade=>/^(?:\(구\)\s*4(?:\s*등급)?|철거\s*필요|특정빈집)$/.test(grade)))];
+ if(flaggedGrades.length)priority.push('조사 기록 · '+flaggedGrades.join(' / '));
+ if(grades.some(grade=>/^(?:\(구\)\s*)?[34](?:\s*등급)?$/.test(grade))&&!priority.length)priority.push('3·4등급 기록이 있어 적용된 조사 기준과 원본 판정 내용을 확인하세요.');
+ if(report?.fieldCriteria?.checks?.minor_physical_damage===true)priority.push('2025년 현장조사서에 창호·지붕·외벽 복합 파손항목 체크가 있습니다.');
+ const age=facts.approval.age??(facts.approval.state==='missing'?core.age(report?.approvalYear,input.year):null);
+ if(age!==null&&age>=30){
+  const source=facts.approval.age===undefined?' · 2025년 상세조사':'';
+  const check=age>=50?'구조 안전과 보존가치를 우선 확인하세요.':'다른 물리적 제약과 수선 범위를 함께 확인하세요.';
+  priority.push('사용승인 기준 연도 차이 '+age+'년'+source+' · '+check);
+ }
+ if(input.flood?.state==='ready'&&input.flood.count>0)priority.push('빈집 좌표가 과거 침수흔적 수록 구역과 겹칩니다. 현재 피해와 방재 여건을 확인하세요.');
+ const nearby=input.nearby,grid=input.gridTrend,near=input.guideNeighborhood||input.neighborhood;
+ const facilities=near?.state==='ready'&&near.result?.radius===500?near.result.facilities:null;
+ const facilityLabels={bus:'정류장',park:'공원',school:'학교',hospital:'병·의원',pharmacy:'약국',shop:'상가'};
+ const counts=Object.entries(facilityLabels).flatMap(([key,label])=>{
+  const source=near?.sources?.find(item=>item.kind===key);
+  const count=facilities?.[key]?.count;
+  return source?.included>0&&Number.isFinite(count)?[label+' '+count.toLocaleString('ko-KR')+'곳']:[];
+ });
+ const range=grid?.state==='ready'&&grid.radius===500?grid.range:null;
+ const population=range?.common
+  ?grid.years.map((year,index)=>year+'년 '+range.values[index].toLocaleString('ko-KR')+'명').join(' → ')+' · 반경 500m 내 3개 연도 공통 '+range.common+'/'+range.expected+'격자'
+  :null;
+ const format=fact=>fact.label+' · '+fact.value+(fact.state==='historic'&&fact.source?' · '+fact.source:'');
+ const evidence=(...keys)=>keys.map(key=>facts[key]).filter(fact=>['ready','historic','reference'].includes(fact.state)).map(format);
+ const condition=[
+  {title:'1. 정비 유형과 소유자 의사',rows:[...evidence('grade','approval','physical','owner'),...(known(report?.roof)?['지붕 구조 · '+report.roof+' (2025년 상세조사)']:[])],next:'현재 구조 안전성, 보존가치, 수선·철거 비용과 소유자의 공공활용 또는 철거 동의를 확인하세요.'},
+  {title:'2. 주변 빈집 분포',rows:nearby?.state==='ready'&&nearby.radius===100?['직선 반경 100m의 다른 조사 주소 '+nearby.survey.length+'곳 · 좌표 없는 조사 주소 '+nearby.unlocatedSurvey+'곳 제외']:[],next:'공식 밀집·우선정비구역, 행정리 전체 주택 수, 필지 인접성과 공동사업 가능성을 확인하세요.'},
+  {title:'3. 정비사업 구역',rows:[],next:'정비계획과 지정 고시에서 해당 필지의 포함·해제 여부를 확인하세요. 구역 안이라면 사업계획 및 일정과 연계해 검토합니다.'},
+  {title:'4. 용도지역과 필지 제약',rows:evidence('zone','zoning','parcelArea','road'),next:'법정 접도, 실제 도로폭, 용도별 허용 조건과 필지 이용 제한을 확인하세요.'},
+  {title:'5. 인구 변화와 유입',rows:population?[population]:[],next:'격자 총인구와 함께 읍면동 추이, 방문객 변화를 확인하세요. 농촌은 행정리 인구와 귀농·귀촌 유입도 확인합니다.'},
+  {title:'6. 지원이 필요한 주민',rows:[],next:'기초생활수급자, 고령·청년 1인가구, 다문화가구와 외국인 근로자 자료 및 이용 의향을 확인하세요.'},
+  {title:'7. 연령대별 인구 변화',rows:[],next:'유소년·청년·고령 인구의 최근 3년 변화와 실제 돌봄·주거·복지 수요를 확인하세요.'},
+  {title:'8. 생활시설과 안전',rows:[...(counts.length?['연결 자료에 수록된 직선 반경 500m 시설 · '+counts.join(' / ')]:[]),...evidence('flood')],next:'문화·쉼터와 돌봄시설의 운영 및 중복, 범죄주의 자료를 확인하세요. 농촌은 마을자원과 중심지 접근도 살펴봅니다.'}
+ ];
+ const grouped=nearby?.state==='ready'&&nearby.radius===100&&nearby.survey.length>0;
+ return{condition,priority,candidates:[
+  {title:'기존 건물 활용',text:'안전과 수선 범위, 소유자 동의를 확인한 뒤 연면적별 후보를 실제 이용 수요와 대조하세요. '+(range?.change?.delta<0?'비교 가능한 500m 격자의 인구가 줄었습니다. 방문·귀농귀촌 유입과 이용 의향을 확인하고, 기존 건물 안에서 운영할 소규모 기능부터 비교하세요.':'')},
+  {title:'단순 철거 또는 철거 후 토지 활용',text:'철거 필요성이 확인되면 단순 철거와 정원·쉼터·텃밭 등 토지 활용을 비교하세요. 출입과 이용 조건, 관리 주체를 확인합니다.'},
+  ...(grouped?[{title:'주변 빈집과 연계 활용',text:'반경 100m에 다른 조사 주소가 '+nearby.survey.length+'곳 있습니다. 실제 인접 필지와 진입로, 정비 일정, 소유자별 동의 여부를 대조하세요.'}]:[])
+ ]};
+}
+function renderReviewStages(el,model,openStages){
+ const review=model.reviewStages,section=el('section');section.className='guideline-review';
+ section.append(el('h3','빈집 입지·수요 종합분석'),el('p','정비 유형과 제약 → 지역 수요와 시설 → 활용 후보 검토'));
+ if(review.priority.length){
+  const list=el('ul');list.className='guideline-priority';
+  for(const text of review.priority)list.append(el('li',text));
+  section.append(el('strong','먼저 확인할 기록'),list);
+ }
+ const stages=el('ol');stages.className='guideline-stages';
+ for(const stage of review.condition){
+  const item=el('li'),details=el('details');
+  details.open=openStages.has(stage.title);
+  details.ontoggle=()=>{if(details.open)openStages.add(stage.title);else openStages.delete(stage.title);};
+  details.append(el('summary',stage.title+' · '+(stage.rows.length?'자료 있음':'확인 필요')));
+  for(const value of stage.rows.length?stage.rows:['연결된 확인 자료 없음'])details.append(el('p',value));
+  details.append(el('p',stage.next));item.append(details);stages.append(item);
+ }
+ section.append(stages,el('h4','조건별 활용 후보'));
+ for(const candidate of review.candidates){
+  const card=el('article');card.append(el('strong',candidate.title),el('p',candidate.text));section.append(card);
+ }
+ section.append(el('p','활용 유형을 정하기 전 주민 의견을 수렴하세요. 이후 정비계획과의 연계, 공공·민간 사업방식, 운영주체와 재원을 검토합니다.'),el('p','출처 · 2025년 빈집 정비·활용 가이드라인 연구 2.1~3.2절'));
+ return section;
+}
 function build(input,core=root.VacancySpatialCore){
  const records=input.records||[],target=input.target||records[0]||{},res=input.res||core.resolve({},target),reports=input.reports||[],near=input.neighborhood||{state:'missing'},flood=input.flood||{state:'missing'},facts={};
  const fact=(key,label,state,value,source,gap)=>facts[key]={key,label,state,value:value||'미확인',source:source||'',gap};
@@ -70,7 +140,7 @@ function build(input,core=root.VacancySpatialCore){
  }
  pick('grade','조사 등급',[],'grade','','등급만으로 구조 안전성이나 철거 여부를 정하지 않습니다.');
  pick('approval','사용승인·경과연수',['register','building'],'approvalDate','','현장 안전성과 수선 범위는 별도 확인해야 합니다.');
- if(facts.approval.state==='ready'){const part=res.register.status==='single'&&known(res.register.rows[0].approval)?res.register.rows[0].approval:res.building.status==='single'&&known(res.building.rows[0].approval)?res.building.rows[0].approval:records.find(r=>known(r.approvalDate))?.approvalDate;const age=core.age(part,input.year||new Date().getFullYear());if(age===null){facts.approval.state='missing';facts.approval.gap='사용승인일·연도가 유효한지 확인하세요.';}else facts.approval.value+=' · 연도 차이 '+age+'년';}
+ if(facts.approval.state==='ready'){const part=res.register.status==='single'&&known(res.register.rows[0].approval)?res.register.rows[0].approval:res.building.status==='single'&&known(res.building.rows[0].approval)?res.building.rows[0].approval:records.find(r=>known(r.approvalDate))?.approvalDate;const age=core.age(part,input.year||new Date().getFullYear());if(age===null){facts.approval.state='missing';facts.approval.gap='사용승인일·연도가 유효한지 확인하세요.';}else{facts.approval.age=age;facts.approval.value+=' · 연도 차이 '+age+'년';}}
  pick('structure','건물 구조',['register','building'],null,'','기재 구조와 실제 구조·보강 이력을 확인하세요.');
  pick('usage','대장상 건물 용도',['register','building'],null,'','현재 용도 표기이며, 제안 용도의 영업·용도변경 허용 여부는 별도 확인입니다.');
  pick('totalArea','연면적',['register','building'],'totalArea',' ㎡','실제 사용할 수 있는 실내면적·동선·수선비를 확인하세요.');
@@ -101,9 +171,9 @@ function build(input,core=root.VacancySpatialCore){
  {id:'commercial',title:'상업·숙박 활용',keys:['usage','totalArea','structure','shops','bus','parking','population','zone','zoning','flood'],next:['생활·방문인구, 시간대별 고객 수요와 숙박 수요 확인','원하는 업종의 건축·영업·숙박 관련 허용 조건 확인','수선비·주차·소방·설비비·운영비를 반영한 사업성 검토']},
  {id:'land',title:'철거 후 공지 활용',keys:['parcelArea','landArea','parcelShape','road','height','physical','zone','zoning','owner','flood'],next:['구조 안전과 보존·수선 대안을 비교한 뒤 철거 필요성 검토','현재 소유자 동의·권리관계·철거 절차·석면 등 유해물질 확인','주차장·쉼터·텃밭 등 용도별 토지 규제와 조성·유지관리 주체 확인']}
  ];
- return{address:target.address||'',facts,sizeCandidates:sizeCandidates({...input,res,records,reports},facts,core),uses:uses.map(u=>({...u,items:u.keys.map(k=>facts[k])})),ranking:rank(input,input.rankSettings),scope:'현재 연결 자료의 근거와 잠정 검토순위를 보여줍니다. 최종 적합성·실행 승인·철거 판정이 아닙니다.'};
+ return{address:target.address||'',facts,reviewStages:reviewStages(input,facts,core),sizeCandidates:sizeCandidates({...input,res,records,reports},facts,core),uses:uses.map(u=>({...u,items:u.keys.map(k=>facts[k])})),ranking:rank(input,input.rankSettings),scope:'연결된 자료의 근거와 미확인 항목으로 활용 후보를 검토합니다. 최종 적합성·실행 승인·철거 판정이 아닙니다.'};
 }
-function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,host=doc.getElementById('reusePanel');if(!host)return;const el=(tag,s)=>{const n=doc.createElement(tag);if(s!==undefined)n.textContent=s;return n;},box=el('details');box.id='purposeReview';box.className='readiness-panel';host.insertBefore(box,host.firstChild||null);let selected=null,timer,settings={},methodOpen=false,settingsMessage='';const openUses=new Map(),settingsKey='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':purpose-rank-settings:v1';
+function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,host=doc.getElementById('reusePanel');if(!host)return;const el=(tag,s)=>{const n=doc.createElement(tag);if(s!==undefined)n.textContent=s;return n;},box=el('details');box.id='purposeReview';box.className='readiness-panel';host.insertBefore(box,host.firstChild||null);let selected=null,timer,settings={},rankingOpen=false,methodOpen=false,settingsMessage='';const storageScope='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname,openUses=new Map(),openStages=new Set(),settingsKey=storageScope+':purpose-rank-settings:v1';
  try{const saved=root.localStorage?.getItem(settingsKey);if(saved){const parsed=JSON.parse(saved),checked=rank({},parsed);settings={...checked.config,weights:checked.weights};}}catch{settingsMessage='저장된 산정 기준이 올바르지 않아 기본값으로 시작했습니다.';}
  function renderRanking(model){
   const ranking=model.ranking,section=el('section');section.id='purposeRanking';section.append(el('h3','활용방향 잠정 검토순위'),el('p','같은 빈집의 활용방향을 임시 입지지표로 비교합니다. 최종 활용 추천이나 안전 판정이 아닙니다.'));for(const warning of ranking.warnings){const p=el('p',warning);p.className='spatial-note';section.append(p);}
@@ -120,11 +190,12 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   reset.onclick=()=>save({});method.append(apply,reset,message);section.append(method);return section;
  }
  function render(){box.replaceChildren(el('summary','용도별 활용 검토표'));if(!selected?.address){box.append(el('p','지도에서 빈집을 선택하면 연결된 자료로 네 가지 활용 검토표를 채웁니다.'));return;}box.open=true;
- const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
- box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderSizeCandidates(doc,model),renderRanking(model));const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
+ const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
+ const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','입지 점수 참고'),renderRanking(model));
+ box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages),renderSizeCandidates(doc,model),ranking);const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
  for(const use of model.uses){const part=el('details');part.open=openUses.has(use.id)?openUses.get(use.id):use.id==='housing';part.append(el('summary',use.title));part.ontoggle=()=>openUses.set(use.id,part.open);const table=el('table');table.className='readiness-table purpose-review-table';const head=el('tr');for(const title of ['검토 항목','연결 근거와 확인사항'])head.append(el('th',title));table.append(head);for(const f of use.items){const tr=el('tr'),label=el('td',f.label),evidence=el('td'),gap=el('p','추가 확인: '+f.gap);evidence.append(el('strong',states[f.state]||'미확인'),el('p',f.value));if(f.source){const source=el('p',f.source);source.className='spatial-note';evidence.append(source);}evidence.append(gap);tr.append(label,evidence);table.append(tr);}part.append(table,el('h4','용도별 다음 확인사항'));const list=el('ul');for(const n of use.next)list.append(el('li',n));part.append(list);box.append(part);}
  }
- const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer'])root.addEventListener(event,later);render();
+ const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();
 }
 const api={build,rank,sizeCandidates,renderSizeCandidates,RANK_DEFAULTS,RANK_WEIGHTS};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyPurposeReview=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
 })(typeof window!=='undefined'?window:globalThis);

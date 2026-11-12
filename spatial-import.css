@@ -25,6 +25,21 @@
 .trend-compare-track::before { content: ""; position: absolute; inset: 0 auto 0 50%; border-left: 1px solid #829087; }
 .trend-compare-bar { position: absolute; inset-block: 0; border-radius: 2px; }
 
+.visitor-trend-chart { list-style: none; padding: 0; margin: 8px 0; }
+.visitor-trend-row {
+  display: grid;
+  grid-template-columns: 5em minmax(18px, 1fr) 8em;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.visitor-trend-row > :last-child { text-align: right; }
+.visitor-trend-track { display: block; height: 10px; background: #edf1ed; border-radius: 2px; overflow: hidden; }
+.visitor-trend-bar { display: block; height: 100%; background: #247754; border-radius: 2px; }
+.visitor-trend-missing { background: repeating-linear-gradient(135deg,#e3e9e4 0 3px,#f4f7f4 3px 6px); }
+
 .guideline-review {
   padding: 12px;
   margin: 12px 0;

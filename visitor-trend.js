@@ -67,9 +67,39 @@ function validate(data){
 function summary(data){
  if(!data)return [];
  const complete=data.filter(item=>item.total!==null);
- return ['세종시 전체 · 외지인 방문자 일별 집계의 월 합계 · '+data[0].month+'~'+data.at(-1).month+' (한국관광공사)',
-  ...Array.from({length:4},(_,index)=>data.slice(index*3,index*3+3).map(item=>item.month+' '+(item.total===null?'미집계 ('+item.covered+'/'+item.days+'일)':Math.round(item.total).toLocaleString('ko-KR')+'명')).join(' / ')),
-  '완전 집계 '+complete.length+'/12개월 · 여러 날 방문한 사람은 날짜별로 집계됩니다.'];
+ return ['세종시 전체 외지인 방문 · '+data[0].month+'~'+data.at(-1).month+' · 월 합계 '+complete.length+'/12개월 (한국관광공사)'];
+}
+function renderChart(doc,host,data){
+ host.replaceChildren();
+ const el=(tag,text,cls)=>{
+  const node=doc.createElement(tag);
+  if(text!==undefined)node.textContent=text;
+  if(cls)node.className=cls;
+  return node;
+ };
+ if(!data){
+  host.append(el('p','자료관리 → API 연결 → 한국관광공사 방문자에서 조회하세요.','spatial-note'));
+  return;
+ }
+ const complete=data.filter(item=>item.total!==null);
+ const max=Math.max(1,...complete.map(item=>item.total));
+ const chart=el('ul',undefined,'visitor-trend-chart');
+ for(const item of data){
+  const row=el('li',undefined,'visitor-trend-row');
+  const track=el('span',undefined,'visitor-trend-track');
+  track.setAttribute('aria-hidden','true');
+  const bar=el('span',undefined,'visitor-trend-bar');
+  if(item.total!==null){
+   bar.style.width=(item.total/max*100)+'%';
+   track.append(bar);
+  }else{
+   track.className+=' visitor-trend-missing';
+  }
+  const value=item.total===null?'미집계 '+item.covered+'/'+item.days+'일':Math.round(item.total).toLocaleString('ko-KR')+'명';
+  row.append(el('span',item.month),track,el('span',value));chart.append(row);
+ }
+ host.append(el('p','세종시 전체 · 월 합계 '+complete.length+'/'+data.length+'개월','trend-scope'),chart,
+  el('p','한국관광공사 · 일별 외지인 방문자 수의 월 합계입니다. 여러 날 방문한 사람은 날짜별로 집계됩니다.','spatial-note'));
 }
 function init(){
  const doc=root.document;
@@ -86,6 +116,11 @@ function init(){
  const status=el('p','선택한 기준월까지 12개월을 조회합니다.');status.setAttribute('role','status');
  const link=el('a','공공데이터포털 활용신청');link.href=source;link.target='_blank';link.rel='noopener noreferrer';
  panel.append(el('h3','세종시 방문자 추이'),link,key,label,query,clear,status);left.append(panel);
+ const results=doc.getElementById('reusePanel');
+ const chartPanel=el('details');chartPanel.id='visitorTrendPanel';chartPanel.className='readiness-panel';chartPanel.open=true;
+ const chartBody=el('div');
+ chartPanel.append(el('summary','세종시 외지인 방문 추이'),chartBody);
+ results?.append(chartPanel);
  const storage='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':tourism-visitors:v1';
  let data=null;
  function restore(){
@@ -94,9 +129,13 @@ function init(){
   if(data){end.value=data.at(-1).month;status.textContent='저장 통계 복원 · '+data[0].month+'~'+data.at(-1).month;}
   else status.textContent='선택한 기준월까지 12개월을 조회합니다.';
  }
- const notify=()=>root.dispatchEvent(new Event('vacancy-visitor-data-changed'));
+ const notify=()=>{
+  renderChart(doc,chartBody,data);
+  root.dispatchEvent(new Event('vacancy-visitor-data-changed'));
+ };
  api.evidence=()=>summary(data);
  restore();
+ renderChart(doc,chartBody,data);
  query.onclick=async()=>{
   if(query.disabled)return;
   let serviceKey=key.value.trim();
@@ -116,7 +155,7 @@ function init(){
    data=validate(next);
    let saved=true;
    try{root.localStorage.setItem(storage,JSON.stringify(data));}catch{saved=false;}
-   status.textContent='조회 완료 · 활용 검토 ⑤에서 확인하세요. '+(saved?'조회 결과를 이 브라우저에 저장했습니다.':'이번 화면에서만 표시합니다.');
+   status.textContent='조회 완료 · 주변환경의 세종시 외지인 방문 추이에서 확인하세요. '+(saved?'조회 결과를 이 브라우저에 저장했습니다.':'이번 화면에서만 표시합니다.');
    notify();
   }catch(error){status.textContent=error.message+' 기존 조회 결과는 유지됩니다.';}
   finally{query.disabled=clear.disabled=end.disabled=key.disabled=false;}
@@ -127,7 +166,7 @@ function init(){
  };
  root.addEventListener('storage',event=>{if(event.key===storage||event.key===null){restore();notify();}});
 }
-const api={months,aggregate,loadMonth,summary};
+const api={months,aggregate,loadMonth,summary,renderChart};
 root.VacancyVisitorTrend=api;
 if(typeof module==='object'&&module.exports)module.exports=api;
 if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}

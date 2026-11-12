@@ -10,6 +10,18 @@
 
 .population-trend-region{display:block;font-size:11px;margin:10px 0}.population-trend-region select{width:100%;max-width:100%;padding:6px;border:1px solid #c6d8ca;border-radius:5px;background:#fff;font:inherit}
 
+.trend-compare-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; }
+.trend-compare-legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 4px; border-radius: 2px; }
+.trend-compare-legend .city::before, .trend-compare-bar.city { background: #4b6c98; }
+.trend-compare-legend .local::before, .trend-compare-bar.local { background: #247754; }
+.trend-compare-year { margin: 6px 0; padding: 6px 0; border-top: 1px solid #dbe5dc; font-size: 11px; }
+.trend-compare-row { grid-template-columns: 5.5em minmax(24px, 1fr) 10em; }
+.trend-compare-row > .city { color: #3f5e87; }
+.trend-compare-row > .local { color: #21664f; }
+.trend-compare-track { position: relative; display: block; height: 10px; background: #edf1ed; }
+.trend-compare-track::before { content: ""; position: absolute; inset: 0 auto 0 50%; border-left: 1px solid #829087; }
+.trend-compare-bar { position: absolute; inset-block: 0; border-radius: 2px; }
+
 .guideline-review {
   padding: 12px;
   margin: 12px 0;

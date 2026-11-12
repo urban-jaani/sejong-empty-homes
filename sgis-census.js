@@ -3,7 +3,7 @@
 const BASE='https://sgisapi.mods.go.kr/OpenAPI3';
 function result(data){if(!data||String(data.errCd)!=='0'){const code=String(data?.errCd??'UNKNOWN').replace(/[^0-9A-Za-z_-]/g,'').slice(0,40);const e=Error('SGIS 응답 오류 ('+code+'). 인증정보·서비스 권한·기준연도를 확인하세요.');e.code=code;throw e;}return data.result;}
 async function transport(path,params,signal){
- if(!['/auth/authentication.json','/addr/stage.json','/year/data.json','/stats/population.json','/stats/household.json'].includes(path))throw Error('허용되지 않은 SGIS 요청입니다.');
+ if(!['/auth/authentication.json','/addr/stage.json','/year/data.json','/stats/population.json','/stats/searchpopulation.json','/stats/household.json'].includes(path))throw Error('허용되지 않은 SGIS 요청입니다.');
  const url=new URL(BASE+path);for(const [k,v]of Object.entries(params))url.searchParams.set(k,String(v));const controller=new AbortController(),abort=()=>controller.abort(),timer=setTimeout(abort,20000);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)controller.abort();
  try{let response;try{response=await root.fetch(url.href,{signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer'});}catch(e){if(controller.signal.aborted)throw Error('SGIS 조회가 중지됐거나 시간이 초과됐습니다.');throw Error('SGIS 연결이 차단됐습니다. 등록 URL·네트워크를 확인하세요. 브라우저 교차출처 제한이면 서버 중계가 필요할 수 있습니다.');}if(!response.ok)throw Error('SGIS 서버 응답 오류 ('+response.status+').');let json;try{json=await response.json();}catch{throw Error('SGIS에서 JSON 응답을 받지 못했습니다.');}return result(json);}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
@@ -28,24 +28,83 @@ async function loadStats(client,year,signal){
  const merged=new Map();for(const r of pop)merged.set(String(r.adm_cd),{code:String(r.adm_cd),name:String(r.adm_nm||r.adm_cd).slice(0,100),population:numeric(r.tot_ppltn),households:null,averageAge:numeric(r.avg_age)});for(const r of house){const c=String(r.adm_cd);if(!merged.has(c))merged.set(c,{code:c,name:String(r.adm_nm||c).slice(0,100),population:null,households:null,averageAge:null});merged.get(c).households=numeric(r.household_cnt);}
  return validateSnapshot({format:'sejong-sgis-census',version:1,year:Number(year),cityCode:code,cityName:String(sejong[0].addr_name),queriedAt:new Date().toISOString(),total:{population:numeric(totalPop.tot_ppltn),households:numeric(totalHouse.household_cnt),averageAge:numeric(totalPop.avg_age)},regions:[...merged.values()]});
 }
+// SGIS 인구주택총조사 연령 코드. 청년 참고 구간은 20~39세입니다.
+const DEMAND_GROUPS=Object.freeze({children:'유소년 0~14세',young:'20~39세',older:'고령 65세 이상'});
+
+async function loadDemand(client,snapshot,signal){
+ const base=validateSnapshot(snapshot),regions=base.regions.filter(region=>region.code.length===8);
+ if(!regions.length)throw Error('읍·면·동 인구 통계를 먼저 연결하세요.');
+ const queries=[
+  ['singleHouseholds','/stats/household.json','household_type','A0','household_cnt'],
+  ...['22','32','33','24'].map(code=>[code,'/stats/searchpopulation.json','age_type',code,'population'])
+ ];
+ const tables=new Map();
+ const query=async(path,key,value,code,low)=>{
+  try{
+   const result=await client.call(path,{year:String(base.year),adm_cd:code,low_search:String(low),[key]:value},signal);
+   if(!Array.isArray(result))throw Error('SGIS 세부 통계 응답 형식을 확인하세요.');
+   return result;
+  }
+  catch(error){if(error.code==='-100'&&!signal?.aborted)return [];throw error;}
+ };
+ for(const [id,path,key,value,field] of queries){
+  const result=await query(path,key,value,base.cityCode,2);
+  let entries=result.length?rows(result,base.cityCode,true):[];
+  if(entries[0]&&String(entries[0].adm_cd).length===5){
+   const parents=entries;
+   entries=[];
+   for(const parent of parents){
+    const code=String(parent.adm_cd),children=await query(path,key,value,code,1);
+    if(children.length)entries.push(...rows(children,code,true));
+   }
+  }
+  const values=new Map(entries.map(row=>{
+   const value=numeric(row[field]);
+   return [String(row.adm_cd),Number.isSafeInteger(value)?value:null];
+  }));
+  tables.set(id,values);
+ }
+ const demand=regions.map(region=>{
+  const get=key=>tables.get(key).get(region.code)??null;
+  const twenties=get('32'),thirties=get('33');
+  return {code:region.code,singleHouseholds:get('singleHouseholds'),children:get('22'),
+   young:twenties===null||thirties===null?null:twenties+thirties,older:get('24')};
+ });
+ if(!demand.some(row=>['singleHouseholds',...Object.keys(DEMAND_GROUPS)].some(key=>row[key]!==null))){
+  throw Error(base.year+'년 읍·면·동의 1인 가구·연령별 인구를 확인하지 못했습니다.');
+ }
+ const byCode=new Map(demand.map(row=>[row.code,row]));
+ return validateSnapshot({...base,regions:base.regions.map(region=>({...region,...byCode.get(region.code)}))});
+}
 function validateSnapshot(data){
  if(data?.format!=='sejong-sgis-census'||data.version!==1||!Number.isInteger(data.year)||data.year<2015||data.year>new Date().getFullYear()||!/^\d{2}$/.test(data.cityCode)||!['세종특별자치시','세종시'].includes(data.cityName)||!Number.isFinite(Date.parse(data.queriedAt))||!Array.isArray(data.regions)||!data.regions.length||data.regions.length>1000)throw Error('저장된 SGIS 통계 형식이 올바르지 않습니다.');
  const cleanValues=r=>Object.fromEntries(['population','households','averageAge'].map(k=>{const v=r?.[k];if(v!==null&&(!Number.isFinite(v)||v<0))throw Error('SGIS 통계값 형식을 확인하세요.');return[k,v];})),seen=new Set(),regions=data.regions.map(r=>{if(!/^(\d{5}|\d{8})$/.test(r.code)||!r.code.startsWith(data.cityCode)||seen.has(r.code)||typeof r.name!=='string')throw Error('저장 통계 지역코드 오류');seen.add(r.code);return{code:r.code,name:r.name.slice(0,100),...cleanValues(r)};});if(new Set(regions.map(r=>r.code.length)).size!==1)throw Error('저장 통계 지역 단위 오류');
+ for(const [index,region] of regions.entries()){
+  const raw=data.regions[index];
+  for(const key of ['singleHouseholds',...Object.keys(DEMAND_GROUPS)]){
+   if(!Object.hasOwn(raw,key))continue;
+   const value=raw[key];
+   if(region.code.length!==8||(value!==null&&(!Number.isSafeInteger(value)||value<0)))throw Error('SGIS 읍·면·동 세부 통계값 형식을 확인하세요.');
+   region[key]=value;
+  }
+ }
  return{format:'sejong-sgis-census',version:1,year:data.year,cityCode:data.cityCode,cityName:data.cityName,queriedAt:data.queriedAt,total:cleanValues(data.total),regions};
 }
 function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,left=doc.querySelector('.dashboard-left');if(!left)return;const el=(tag,text)=>{const n=doc.createElement(tag);if(text!==undefined)n.textContent=text;return n;},panel=el('section');panel.className='spatial-import';panel.id='sgisImportPanel';panel.append(el('h3','SGIS 인구·가구 연결'));
  const id=el('input');id.type='text';id.autocomplete='off';id.placeholder='서비스 ID';id.setAttribute('aria-label','SGIS 서비스 ID');const secret=el('input');secret.type='password';secret.autocomplete='off';secret.placeholder='보안 Key';secret.setAttribute('aria-label','SGIS 보안 Key');
  const auth=el('button','SGIS 인증 연결'),query=el('button','세종시 인구·가구 조회'),trend=el('button','선택연도까지 3개연도 조회'),eraseTrend=el('button','변화 통계 지우기'),disconnect=el('button','인증 연결 해제'),erase=el('button','저장 통계 지우기');for(const b of [auth,query,trend,eraseTrend,disconnect,erase])b.type='button';query.disabled=trend.disabled=true;
  const year=el('select');year.setAttribute('aria-label','SGIS 통계 기준연도');for(let y=2024;y>=2015;y--){const option=el('option',y+'년');option.value=String(y);year.append(option);}year.value='2024';
+ const demand=el('button','1인 가구·연령별 인구 조회');
+ demand.type='button';demand.disabled=true;
  const status=el('p','서비스 ID와 보안 Key를 입력해 연결하세요.');status.className='spatial-note';status.setAttribute('role','status');const explanation=el('p','인증정보는 이 화면이 열린 동안에만 사용하고 저장하지 않습니다. 조회한 지역 통계만 브라우저에 저장합니다. 이 API 결과는 100m 격자나 빈집 반경 인구가 아닙니다.');explanation.className='spatial-note';
  const cacheKey='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':sgis-census:v1';let client=null,busy=false,controller=null,serial=0;
- const setBusy=v=>{busy=v;id.disabled=secret.disabled=auth.disabled=year.disabled=erase.disabled=v;query.disabled=trend.disabled=v||!client;eraseTrend.disabled=v;};
+ const setBusy=v=>{busy=v;id.disabled=secret.disabled=auth.disabled=year.disabled=erase.disabled=v;query.disabled=trend.disabled=demand.disabled=v||!client;eraseTrend.disabled=v;};
  function show(snapshot,restored=false){const data=validateSnapshot(snapshot);let box=doc.getElementById('sgisStatsPanel');if(!box){box=el('details');box.id='sgisStatsPanel';box.className='readiness-panel';const target=doc.getElementById('reusePanel');target.insertBefore(box,doc.getElementById('reuseDetails'));}box.replaceChildren(el('summary','SGIS 지역별 인구·가구 · '+data.year+'년'));box.open=true;
   const display=(v,unit)=>v===null?'비공개·미제공':v.toLocaleString('ko-KR')+unit;box.append(el('p','세종시 전체 · 인구 '+display(data.total.population,'명')+' · 가구 '+display(data.total.households,'가구')+' · 평균나이 '+display(data.total.averageAge,'세')));
   const note=el('p','통계 기준 '+data.year+'년 · 조회 '+new Date(data.queriedAt).toLocaleString('ko-KR')+(restored?' · 저장 결과':'')+' · 빈집 연도·지도 선택조건과 별도입니다. 행정구역 통계이며 특정 빈집 주변 인구로 해석하지 않습니다.');note.className='spatial-note';box.append(note);
   const table=el('table');table.className='readiness-table';const header=el('tr');for(const title of ['SGIS 지역','인구','가구','평균나이'])header.append(el('th',title));table.append(header);for(const r of data.regions.sort((a,b)=>a.name==='조치원읍'?-1:b.name==='조치원읍'?1:a.name.localeCompare(b.name,'ko'))){const tr=el('tr');for(const value of [r.name+' ('+(r.code.length===8?'읍면동':'시군구')+')',display(r.population,'명'),display(r.households,'가구'),display(r.averageAge,'세')])tr.append(el('td',value));table.append(tr);}box.append(table);const source=el('a','SGIS 인구·가구 API 설명');source.href='https://sgis.mods.go.kr/developer/html/newOpenApi/api/dataApi/census.html';source.target='_blank';source.rel='noopener';box.append(source);
  }
- function invalidate(){serial++;controller?.abort();client?.clear();client=null;query.disabled=trend.disabled=true;status.textContent='인증 연결을 해제했습니다. 저장 통계는 유지됩니다.';}
+ function invalidate(){serial++;controller?.abort();client?.clear();client=null;query.disabled=trend.disabled=demand.disabled=true;status.textContent='인증 연결을 해제했습니다. 저장 통계는 유지됩니다.';}
  id.oninput=secret.oninput=()=>{if(client)invalidate();};disconnect.onclick=()=>{invalidate();id.value=secret.value='';};
  auth.onclick=async()=>{if(busy)return;if(!id.value.trim()||!secret.value.trim()){status.textContent='서비스 ID와 보안 Key 두 값을 입력하세요.';return;}client?.clear();client=createClient(id.value,secret.value);const current=client,version=++serial;controller=new AbortController();setBusy(true);status.textContent='SGIS 인증을 확인합니다…';
   try{await current.authenticate(controller.signal);if(version!==serial)return;secret.value='';let extra='';try{const info=await current.call('/year/data.json',{},controller.signal);const years=[...new Set([...(Array.isArray(info?.tin_yr)?info.tin_yr:[]),info?.lin_yr].map(String).filter(v=>/^20\d{2}$/.test(v)&&+v>=2015&&+v<=new Date().getFullYear()))].sort((a,b)=>+b-+a);if(years.length){year.replaceChildren();for(const y of years){const option=el('option',y+'년');option.value=y;year.append(option);}year.value=years[0];}else extra=' · 연도 목록은 문서 기준입니다.';}catch{extra=' · 연도 목록 조회 실패: 문서 기준 연도를 선택하세요.';}if(version===serial)status.textContent='SGIS 인증 연결 완료 · 토큰은 조회 시 필요하면 자동 갱신합니다.'+extra;}
@@ -53,9 +112,29 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  };
  query.onclick=async()=>{if(busy||!client)return;const current=client,version=serial;controller=new AbortController();setBusy(true);status.textContent='세종시 인구·가구를 조회합니다…';try{const data=await loadStats(current,year.value,controller.signal);if(version!==serial)return;show(data);root.selectCategory?.('reuse');let saved=true;try{root.localStorage.setItem(cacheKey,JSON.stringify(data));}catch{saved=false;}status.textContent=data.year+'년 통계 연결 완료 · '+(saved?'지역 통계만 저장했습니다.':'저장 공간 부족: 현재 화면에서만 사용합니다.');}catch(e){if(version===serial)status.textContent=e.message+' 이전 조회 결과는 유지합니다.';}finally{if(version===serial)controller=null;setBusy(false);}};
  trend.onclick=async()=>{if(busy||!client)return;if(!root.VacancyPopulationTrend?.set){status.textContent='변화 통계 도구를 불러오지 못했습니다. population-trend.js를 함께 업로드하세요.';return;}const current=client,version=serial;controller=new AbortController();setBusy(true);status.textContent=(Number(year.value)-2)+'~'+year.value+'년 인구·가구를 조회합니다…';try{const data=await root.VacancyPopulationTrend.load(current,year.value,controller.signal);if(version!==serial)return;const saved=root.VacancyPopulationTrend.set(data);root.selectCategory?.('reuse');root.VacancyLayout?.showEnvironment?.();status.textContent='연속 3개 연도 통계 연결 완료 · '+(saved?'변화 통계만 이 브라우저에 저장했습니다.':'저장 공간 부족: 이번 화면에서만 표시합니다.');}catch(e){if(version===serial)status.textContent=e.message+' 이전 변화 통계는 유지합니다.';}finally{if(version===serial)controller=null;setBusy(false);}};
+ demand.onclick=async()=>{
+  if(busy||!client)return;
+  const population=root.VacancyPopulationTrend;
+  if(!population?.loadDemand){status.textContent='population-trend.js도 함께 업데이트하세요.';return;}
+  const current=client,version=serial;
+  controller=new AbortController();
+  setBusy(true);
+  status.textContent=(Number(year.value)-2)+'~'+year.value+'년 1인 가구·연령별 인구를 조회합니다…';
+  try{
+   const data=await population.loadDemand(current,year.value,controller.signal);
+   if(version!==serial)return;
+   const saved=population.set(data);
+   status.textContent='조회 완료 · 빈집 선택 후 활용 검토의 ⑤~⑦에서 확인하세요. '+(saved?'이 브라우저에 저장했습니다.':'이번 화면에서만 표시합니다.');
+  }catch(error){
+   if(version===serial)status.textContent=error.message+' 이전 통계는 유지합니다.';
+  }finally{
+   controller=null;
+   setBusy(false);
+  }
+ };
  eraseTrend.onclick=()=>{try{root.VacancyPopulationTrend?.clear?.();status.textContent='저장된 변화 통계를 지웠습니다.';}catch{status.textContent='변화 통계를 지우지 못했습니다. 기존 통계는 유지합니다.';}};
  erase.onclick=()=>{try{root.localStorage.removeItem(cacheKey);doc.getElementById('sgisStatsPanel')?.remove();status.textContent='저장 통계를 지웠습니다. 인증 연결은 유지됩니다.';}catch{status.textContent='저장 통계를 지우지 못했습니다.';}};
- panel.append(explanation,id,secret,auth,year,query,trend,eraseTrend,disconnect,erase,status);left.append(panel);try{const saved=root.localStorage.getItem(cacheKey);if(saved){show(JSON.parse(saved),true);status.textContent='저장 통계를 복원했습니다. 새로 조회할 때 인증하세요.';}}catch{status.textContent='저장 통계를 복원하지 못했습니다. 인증 후 다시 조회하세요.';}
+ panel.append(explanation,id,secret,auth,year,query,trend,demand,eraseTrend,disconnect,erase,status);left.append(panel);try{const saved=root.localStorage.getItem(cacheKey);if(saved){show(JSON.parse(saved),true);status.textContent='저장 통계를 복원했습니다. 새로 조회할 때 인증하세요.';}}catch{status.textContent='저장 통계를 복원하지 못했습니다. 인증 후 다시 조회하세요.';}
 }
-const api={createClient,numeric,validateSnapshot,loadStats,result,transport};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySgis=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
+const api={createClient,numeric,validateSnapshot,loadStats,loadDemand,DEMAND_GROUPS,result,transport};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancySgis=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
 })(typeof window!=='undefined'?window:globalThis);

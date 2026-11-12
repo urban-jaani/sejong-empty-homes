@@ -83,6 +83,14 @@ function reviewStages(input,facts,core){
  const population=range?.common
   ?grid.years.map((year,index)=>year+'년 '+range.values[index].toLocaleString('ko-KR')+'명').join(' → ')+' · 반경 500m 내 3개 연도 공통 '+range.common+'/'+range.expected+'격자'
   :null;
+ const census=input.census;
+ const censusLine=(label,values,unit)=>{
+  if(!values?.some(value=>value!==null))return [];
+  const text=census.years.map((year,index)=>year+'년 '+(values[index]===null?'미제공':values[index].toLocaleString('ko-KR')+unit)).join(' → ');
+  const difference=values.every(value=>value!==null)?values.at(-1)-values[0]:null;
+  const delta=difference===null?'': ' · 처음 대비 '+(difference>0?'+':'')+difference.toLocaleString('ko-KR')+unit;
+  return [census.region+' '+label+' · '+text+delta+' (SGIS 인구주택총조사)'];
+ };
  const format=fact=>fact.label+' · '+fact.value+(fact.state==='historic'&&fact.source?' · '+fact.source:'');
  const evidence=(...keys)=>keys.map(key=>facts[key]).filter(fact=>['ready','historic','reference'].includes(fact.state)).map(format);
  const condition=[
@@ -90,9 +98,9 @@ function reviewStages(input,facts,core){
   {title:'2. 주변 빈집 분포',rows:nearby?.state==='ready'&&nearby.radius===100?['직선 반경 100m의 다른 조사 주소 '+nearby.survey.length+'곳 · 좌표 없는 조사 주소 '+nearby.unlocatedSurvey+'곳 제외']:[],next:'공식 밀집·우선정비구역, 행정리 전체 주택 수, 필지 인접성과 공동사업 가능성을 확인하세요.'},
   {title:'3. 정비사업 구역',rows:[],next:'정비계획과 지정 고시에서 해당 필지의 포함·해제 여부를 확인하세요. 구역 안이라면 사업계획 및 일정과 연계해 검토합니다.'},
   {title:'4. 용도지역과 필지 제약',rows:evidence('zone','zoning','parcelArea','road'),next:'법정 접도, 실제 도로폭, 용도별 허용 조건과 필지 이용 제한을 확인하세요.'},
-  {title:'5. 인구 변화와 유입',rows:population?[population]:[],next:'격자 총인구와 함께 읍면동 추이, 방문객 변화를 확인하세요. 농촌은 행정리 인구와 귀농·귀촌 유입도 확인합니다.'},
-  {title:'6. 지원이 필요한 주민',rows:[],next:'기초생활수급자, 고령·청년 1인가구, 다문화가구와 외국인 근로자 자료 및 이용 의향을 확인하세요.'},
-  {title:'7. 연령대별 인구 변화',rows:[],next:'유소년·청년·고령 인구의 최근 3년 변화와 실제 돌봄·주거·복지 수요를 확인하세요.'},
+  {title:'5. 인구 변화와 유입',rows:[...censusLine('총인구',census?.population,'명'),...(population?[population]:[])],next:'방문객 변화를 확인하세요. 농촌은 행정리 인구와 귀농·귀촌 유입도 확인합니다.'},
+  {title:'6. 지원이 필요한 주민',rows:censusLine('전체 1인 가구',census?.singleHouseholds,'가구'),next:'기초생활수급자, 고령·청년 1인가구, 다문화가구와 외국인 근로자 자료 및 이용 의향을 확인하세요.'},
+  {title:'7. 연령대별 인구 변화',rows:(census?.ages||[]).flatMap(item=>censusLine(item.label,item.values,'명')),next:'19~39세 집계는 1세 단위 원자료로 확인하세요. 실제 돌봄·주거·복지 수요도 함께 확인합니다.'},
   {title:'8. 생활시설과 안전',rows:[...(counts.length?['연결 자료에 수록된 직선 반경 500m 시설 · '+counts.join(' / ')]:[]),...evidence('flood')],next:'문화·쉼터와 돌봄시설의 운영 및 중복, 범죄주의 자료를 확인하세요. 농촌은 마을자원과 중심지 접근도 살펴봅니다.'}
  ];
  const grouped=nearby?.state==='ready'&&nearby.radius===100&&nearby.survey.length>0;
@@ -245,12 +253,12 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   reset.onclick=()=>save({});method.append(apply,reset,message);section.append(method);return section;
  }
  function render(){box.replaceChildren(el('summary','용도별 활용 검토표'));if(!selected?.address){box.append(el('p','지도에서 빈집을 선택하면 연결된 자료로 네 가지 활용 검토표를 채웁니다.'));return;}box.open=true;
- const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
+ const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),census:root.VacancyPopulationTrend?.evidence?.(target),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
  const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','입지 점수 참고'),renderRanking(model));
  box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages,()=>printReview(root,doc,el,model)),renderSizeCandidates(doc,model),ranking);const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
  for(const use of model.uses){const part=el('details');part.open=openUses.has(use.id)?openUses.get(use.id):use.id==='housing';part.append(el('summary',use.title));part.ontoggle=()=>openUses.set(use.id,part.open);const table=el('table');table.className='readiness-table purpose-review-table';const head=el('tr');for(const title of ['검토 항목','연결 근거와 확인사항'])head.append(el('th',title));table.append(head);for(const f of use.items){const tr=el('tr'),label=el('td',f.label),evidence=el('td'),gap=el('p','추가 확인: '+f.gap);evidence.append(el('strong',states[f.state]||'미확인'),el('p',f.value));if(f.source){const source=el('p',f.source);source.className='spatial-note';evidence.append(source);}evidence.append(gap);tr.append(label,evidence);table.append(tr);}part.append(table,el('h4','용도별 다음 확인사항'));const list=el('ul');for(const n of use.next)list.append(el('li',n));part.append(list);box.append(part);}
  }
- const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();
+ const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed','vacancy-sgis-trend-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();
 }
 const api={build,rank,sizeCandidates,renderSizeCandidates,RANK_DEFAULTS,RANK_WEIGHTS};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyPurposeReview=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
 })(typeof window!=='undefined'?window:globalThis);

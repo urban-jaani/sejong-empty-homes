@@ -18,16 +18,18 @@ function selectionRegion(selected,records=[],leftRegions=[],regionAt=root.Vacanc
  return name(address).split(/[\s,]+/).find(valid)||null;
 }
 function model(data,region,sgis=root.VacancySgis){const series=validate(data,sgis),observations=series.observations,matches=observations.map(s=>s.regions.filter(r=>typeof region==='object'&&region?.code?r.code===region.code:name(r.name)===name(region))),consistent=!!region&&matches.every(a=>a.length===1)&&matches.every(a=>a[0].code.length===8&&a[0].code===matches[0][0].code&&name(a[0].name)===name(matches[0][0].name));return{years:observations.map(s=>s.year),region:consistent?matches[0][0].name:null,regionStatus:!region?'not-selected':consistent?'ready':'unmatched',indicators:['population','households'].map(key=>{const city=observations.map(s=>s.total[key]),local=consistent?matches.map(a=>a[0][key]):null,a=change(city),b=local?change(local):null;return{key,city,local,cityChange:a,localChange:b,gap:a.rate!==null&&b?.rate!==null&&b?.rate!==undefined?b.rate-a.rate:null};})};}
-function houseEvidence(data,selected,records=[],sgis=root.VacancySgis){
+function regionEvidence(data,region,sgis){
  if(!data)return null;
- const region=selectionRegion(selected,records);
- const matches=data.observations.map(snapshot=>snapshot.regions.filter(row=>name(row.name)===name(region)));
+ const matches=data.observations.map(snapshot=>snapshot.regions.filter(row=>region?.code?row.code===region.code:name(row.name)===name(region)));
  const first=matches[0][0];
- if(!region||!first||first.code.length!==8||matches.some(rows=>rows.length!==1||rows[0].code!==first.code))return null;
+ if(!region||!first||first.code.length!==8||matches.some(rows=>rows.length!==1||rows[0].code!==first.code||name(rows[0].name)!==name(first.name)))return null;
  const series=key=>matches.map(rows=>rows[0][key]??null);
  return {region:first.name,years:data.observations.map(snapshot=>snapshot.year),
   population:series('population'),singleHouseholds:series('singleHouseholds'),
   ages:Object.entries(sgis.DEMAND_GROUPS).map(([key,label])=>({label,values:series(key)}))};
+}
+function houseEvidence(data,selected,records=[],sgis=root.VacancySgis){
+ return regionEvidence(data,selectionRegion(selected,records),sgis);
 }
 function retainDemand(previous,next){
  if(!previous)return next;
@@ -52,12 +54,14 @@ function render(doc,host,data,region,houseSelected=false){
   m.regionStatus==='unmatched'?(typeof region==='string'?region+' · ':'')+'3개 연도의 동일 읍·면·동 통계가 필요합니다. SGIS 변화 통계를 다시 조회해 주세요.':
   houseSelected?'선택한 빈집의 읍·면·동을 확인하지 못했습니다. 위에서 비교 지역을 선택할 수 있습니다.':'빈집 또는 왼쪽 지역을 선택하거나 위의 비교 지역을 골라 주세요.';
  host.append(el('p',m.years.join(' · ')+'년 · SGIS 행정구역 통계','trend-scope'),el('p',area,'spatial-note'));
- for(const item of m.indicators){
-  const population=item.key==='population',unit=population?'명':'가구';
+ function addChart(title,unit,groups){
   const section=el('section',undefined,'population-trend-indicator');
-  section.append(el('h4',(population?'인구':'가구')+' 변화'));
-  const series=[['세종시 전체',item.city,'city'],[m.region,item.local,'local']].filter(([,values])=>values)
+  section.append(el('h4',title));
+  const series=groups.filter(([,values])=>values?.some(value=>value!==null))
    .map(([label,values,kind])=>({label,values,kind,rates:values.map(value=>values[0]>0&&value!==null?(value/values[0]-1)*100:null)}));
+  if(!series.length){
+   section.append(el('p','조회된 통계 없음','spatial-note'));host.append(section);return;
+  }
   const extent=Math.max(1,...series.flatMap(group=>group.rates.map(value=>Math.abs(value??0))));
   const legend=el('div',undefined,'trend-compare-legend'),chart=el('div',undefined,'trend-compare-chart');
   for(const group of series)legend.append(el('span',group.label,group.kind));
@@ -86,6 +90,24 @@ function render(doc,host,data,region,houseSelected=false){
    if(delta!==null)section.append(el('p',group.label+' · 3개년 차이 '+signed(delta)+unit,'population-trend-change'));
   }
   host.append(section);
+ }
+ for(const item of m.indicators){
+  const population=item.key==='population';
+  addChart(population?'인구 변화':'가구 변화',population?'명':'가구',[
+   ['세종시 전체',item.city,'city'],[m.region,item.local,'local']
+  ]);
+ }
+ const demand=regionEvidence(data,region,root.VacancySgis);
+ if(demand){
+  host.append(el('h4',demand.region+' · 1인 가구와 연령별 인구'));
+  if(demand.singleHouseholds.some(value=>value!==null)||demand.ages.some(item=>item.values.some(value=>value!==null))){
+   addChart('⑥ 전체 1인 가구 변화','가구',[[demand.region,demand.singleHouseholds,'local']]);
+   addChart('⑦ 연령별 인구 변화','명',demand.ages.map(({label,values},index)=>[label,values,'age-'+index]));
+   const missing=demand.ages.filter(item=>item.values.every(value=>value===null)).map(item=>item.label);
+   if(missing.length)host.append(el('p',missing.join(' · ')+' 미제공','spatial-note'));
+  }else{
+   host.append(el('p','자료관리 → API 연결 → SGIS에서 1인 가구·연령별 인구 조회를 누르세요.','spatial-note'));
+  }
  }
  return m;
 }

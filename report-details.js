@@ -126,10 +126,20 @@ function el(tag,text,className){const e=doc.createElement(tag);if(text!==undefin
 function textValue(value){return value===null||value===undefined||value===''?'미기재':String(value);}
 function labelInput(text,type,accept){const label=el('label',text),input=el('input');input.type=type;input.accept=accept;label.append(input);return [label,input];}
 function closeViewer(){if(fieldUrl){URL.revokeObjectURL(fieldUrl);fieldUrl=null;}if(viewerDialog){viewerDialog.close();viewerDialog.replaceChildren();}if(viewerUrl){URL.revokeObjectURL(viewerUrl);viewerUrl=null;}}
-function mount(host,addresses){const target=el('section',undefined,'report-detail-card');target.dataset.reportAddresses=JSON.stringify([...new Set(addresses.filter(a=>typeof a==='string'&&a.trim()))]);host.append(target);renderLinked(target);return target;}
-function refresh(){for(const node of doc.querySelectorAll('[data-report-addresses]'))renderLinked(node);if(searchDialog?.open)renderSearch();}
+function mount(host,addresses,{pdfOnly=false}={}){const target=el('section',undefined,pdfOnly?'layout-house-pdf':'report-detail-card');target.dataset.reportAddresses=JSON.stringify([...new Set(addresses.filter(a=>typeof a==='string'&&a.trim()))]);if(pdfOnly)target.dataset.reportPdfOnly='1';host.append(target);renderLinked(target);return target;}
+function refresh(){root.dispatchEvent?.(new CustomEvent('vacancy-report-data-changed'));for(const node of doc.querySelectorAll('[data-report-addresses]'))renderLinked(node);if(searchDialog?.open)renderSearch();}
 function renderLinked(host){
- const addresses=JSON.parse(host.dataset.reportAddresses||'[]');host.replaceChildren();host.append(el('h4','2025년 상세조사 · 원본 보고서'));
+ const addresses=JSON.parse(host.dataset.reportAddresses||'[]');host.replaceChildren();
+ if(host.dataset.reportPdfOnly){
+  const matches=dataset?lookupRecords(dataset,addresses):[];
+  if(!matches.length){
+   host.append(el('p',dataset?'이 주소의 개별 조사보고서가 없습니다.':'개별 조사보고서를 보려면 상세대장 JSON과 원본 PDF를 연결하세요.','report-note'));
+   return;
+  }
+  for(const record of matches)host.append(pdfButton(record,matches.length>1?' · '+record.id+' ('+record.page+'쪽)':''));
+  return;
+ }
+ host.append(el('h4','2025년 상세조사 · 원본 보고서'));
  if(!dataset){host.append(el('p','왼쪽 「상세 조사보고서」에서 상세대장 JSON과 원본 PDF를 선택하세요.'));return;}
  const matches=lookupRecords(dataset,addresses);
  if(!matches.length){host.append(el('p','이 주소와 일치하는 2025년 조사표가 없습니다. 상세대장 검색으로 주소 표기를 확인하세요.'));return;}
@@ -144,6 +154,11 @@ function criteriaCard(r){
  section.append(el('p','현장조사서 '+r.fieldCriteria.page+'쪽 · 고유번호 '+r.id,'report-note'),makeTable(['minor_physical_damage','minor_waste','minor_locked','major_meter_removed','minor_gas_stopped']));
  const all=el('details');all.append(el('summary','빈집 판별 체크항목 전체 보기'),makeTable(Object.keys(FIELD_CHECKS)));section.append(all,el('p','빈집 판별을 위한 조사 당시 체크입니다. 미체크는 정상·안전 또는 해당 없음 판정이 아닙니다. 파손 항목은 창호·지붕·외벽 등이 묶인 항목이며 부위별 안전등급을 뜻하지 않습니다. 진술의 상세 내용은 표시하지 않습니다.','report-note'));return section;
 }
+function pdfButton(record,suffix=''){
+ const button=el('button',(sourcePdf?'개별 조사보고서 PDF 보기':'원본 PDF 선택 후 보고서 보기')+suffix);
+ button.type='button';button.disabled=!sourcePdf||pdfLoading;button.onclick=()=>openRecord(record);
+ return button;
+}
 function recordCard(r){
  const card=el('details',undefined,'report-record');card.open=true;
  card.append(el('summary','고유번호 '+r.id+' · '+r.grade+' · '+r.page+'쪽'));
@@ -153,7 +168,7 @@ function recordCard(r){
  const fields=[['현장조사일',r.fieldSurveyDate],['등급산정일',r.gradeSurveyDate],['주택유형',r.type],['사용승인연도',r.approvalYear],['대지면적',r.landArea===null?null:r.landArea+' ㎡'],['건축면적',r.buildingArea===null?null:r.buildingArea+' ㎡'],['연면적',r.totalArea===null?null:r.totalArea+' ㎡'],['층수',r.floors],['구조',r.structure],['지붕',r.roof],['미거주 기간',r.vacancyPeriod],['발생 원인',r.vacancyCause],['향후 활용의향',r.reuseIntent],['공개 동의 의향',r.disclosureIntent]];
  for(const [k,v]of fields)dl.append(el('dt',k),el('dd',textValue(v)));card.append(dl);
  card.append(el('p','2025년 조사 당시 기록입니다. 기존 탭의 등급을 덮어쓰지 않으며, 빈칸은 미기재입니다. 활용·철거 결정에는 추가 확인이 필요합니다.','report-note'));
- const button=el('button',sourcePdf?'개별 조사보고서 PDF 보기':'원본 PDF 선택 후 보고서 보기');button.type='button';button.disabled=!sourcePdf||pdfLoading;button.onclick=()=>openRecord(r);card.append(button);
+ card.append(pdfButton(r));
  return card;
 }
 async function openRecord(record){

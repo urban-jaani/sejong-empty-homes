@@ -101,8 +101,8 @@ function render(doc,host,data,region,houseSelected=false){
  if(demand){
   host.append(el('h4',demand.region+' · 1인 가구와 연령별 인구'));
   if(demand.singleHouseholds.some(value=>value!==null)||demand.ages.some(item=>item.values.some(value=>value!==null))){
-   addChart('⑥ 전체 1인 가구 변화','가구',[[demand.region,demand.singleHouseholds,'local']]);
-   addChart('⑦ 연령별 인구 변화','명',demand.ages.map(({label,values},index)=>[label,values,'age-'+index]));
+   addChart('전체 1인 가구 변화','가구',[[demand.region,demand.singleHouseholds,'local']]);
+   addChart('연령별 인구 변화','명',demand.ages.map(({label,values},index)=>[label,values,'age-'+index]));
    const missing=demand.ages.filter(item=>item.values.every(value=>value===null)).map(item=>item.label);
    if(missing.length)host.append(el('p',missing.join(' · ')+' 미제공','spatial-note'));
   }else{

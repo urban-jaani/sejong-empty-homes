@@ -19,6 +19,13 @@ body.layout-shell .dashboard-grid,body.layout-shell .workspace,body.layout-shell
 /* Keep the detail list visible and compact. */
 .layout-list{width:33.333%}
 .layout-list .list-panel{overflow-x:auto}
+.layout-review-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px;align-items:start}
+.layout-review-bottom>.layout-list{width:auto;min-width:0}
+.layout-review-details{min-width:0;overflow-wrap:anywhere}
+.layout-review-details[hidden]{display:none}
+.layout-review-bottom:has(>.layout-review-details[hidden])>.layout-list{grid-column:1}
+.layout-house-pdf{margin-top:8px}
+@media(max-width:760px){.layout-review-bottom{grid-template-columns:minmax(0,1fr)}}
 body.layout-shell .layout-list>.layout-list-title{font-size:13px;font-weight:600;margin:0 0 10px}
 
 /* Compact candidate screening in the left conditions column. */

@@ -37,7 +37,7 @@ function init(){if(doc.body.classList.contains('layout-shell'))return;const inde
   for(const report of doc.querySelectorAll('.report-import'))move(report,card('layoutReportSources','상세대장·원본 PDF','reports'));
   move(by('spatialImportPanel'),card('layoutSpatialSources','공간·건축물 파일','analysis'));
   for(const id of ['landApiPanel','landUseApiPanel']){const n=by(id);if(n){once(n,'layoutFolded',node=>node.open=false);move(n,card('layoutLandApiSources','토지정보 조회','api'));}}
-  move(by('gridTrendImport'),card('layoutGridTrendSources','연도별 100m 격자인구','analysis'));
+  move(by('gridTrendImport'),card('layoutGridTrendSources','격자 인구·가구 통계','analysis'));
   move(by('sgisImportPanel'),card('layoutSgisSources','SGIS 인구·가구','api'));
   if(by('residentPopulationImport'))move(by('residentPopulationImport'),card('layoutResidentSources','주민등록 인구','analysis'));
   if(by('floatingPopulationImport'))move(by('floatingPopulationImport'),card('layoutFloatingPopulationSources','행정동별 유동인구','analysis'));

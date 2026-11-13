@@ -52,6 +52,7 @@ function init(){
  panel.append(el('summary','읍·면·동 유동인구'),controls,body);results.append(panel);
  const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':floating-population:v1';
  let data=null,selected=null,revision=0;
+ let selectedHour=12;
  const getRegion=target=>root.VacancyPopulationTrend?.selectionRegion?.(target,root.VacancySpatialBridge?.records?.()||[]);
  const format=value=>value.toLocaleString('ko-KR',{maximumFractionDigits:1})+'명';
  function fill(select,entries){
@@ -65,26 +66,63 @@ function init(){
   const section=el('section',undefined,'population-trend-indicator');
   const legend=el('div',undefined,'trend-compare-legend');
   for(const group of series)legend.append(el('span',group.date,group.style));
-  const list=el('ul',undefined,'visitor-trend-chart');
-  const max=Math.max(1,...series.flatMap(group=>group.hours.map(value=>value??0)));
-  for(let index=0;index<24;index++){
-   const time=hourLabel(index),item=el('li',undefined,'trend-compare-year');
-   item.append(el('strong',time));
-   for(const group of series){
-    const value=group.hours[index],caption=value===null?'미제공':format(value);
-    const row=el('div',undefined,'visitor-trend-row');
-    row.setAttribute('aria-label',time+' '+group.date+' '+caption);
-    const track=el('span',undefined,'visitor-trend-track');track.setAttribute('aria-hidden','true');
-    if(value===null)track.className+=' visitor-trend-missing';
-    else{
-     const bar=el('span',undefined,'visitor-trend-bar '+group.style);
-     bar.style.width=value/max*100+'%';track.append(bar);
-    }
-    row.append(el('span',group.date),track,el('span',caption));item.append(row);
-   }
-   list.append(item);
+  const svg=(tag,attributes={})=>{
+   const node=doc.createElementNS('http://www.w3.org/2000/svg',tag);
+   for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);
+   return node;
+  };
+  const plot=svg('svg',{viewBox:'0 0 320 154',class:'floating-hour-chart','aria-hidden':'true'});
+  const peak=Math.max(1,...series.flatMap(group=>group.hours.map(value=>value??0)));
+  const unit=10**Math.floor(Math.log10(peak));
+  const max=Math.ceil(peak/unit)*unit;
+  const x=hour=>44+hour*264/23,y=value=>126-value/max*112;
+  for(const value of [0,max/2,max]){
+   plot.append(svg('line',{x1:x(0),x2:x(23),y1:y(value),y2:y(value),class:'floating-hour-grid'}));
+   const label=svg('text',{x:40,y:y(value)+4,'text-anchor':'end'});
+   label.textContent=value.toLocaleString('ko-KR');
+   plot.append(label);
   }
-  section.append(el('h4','시간대별 유동인구 비교'),legend,list);return section;
+  for(const hour of [0,6,12,18,23]){
+   const label=svg('text',{x:x(hour),y:145,'text-anchor':'middle'});
+   label.textContent=hour+'시';plot.append(label);
+  }
+  const cursor=svg('line',{y1:y(max),y2:y(0),class:'floating-hour-cursor'});
+  plot.append(cursor);
+  const dots=[];
+  for(const group of series){
+   let path='',previousKnown=false;
+   group.hours.forEach((value,index)=>{
+    if(value!==null){
+     path+=(previousKnown?'L':'M')+x(index)+' '+y(value)+' ';
+     if(group.hours[index-1]==null&&group.hours[index+1]==null){
+      plot.append(svg('circle',{cx:x(index),cy:y(value),r:2,class:'floating-hour-dot '+group.style}));
+     }
+    }
+    previousKnown=value!==null;
+   });
+   plot.append(svg('path',{d:path,class:'floating-hour-line '+group.style}));
+   const dot=svg('circle',{r:4,class:'floating-hour-dot '+group.style});dots.push(dot);
+  }
+  plot.append(...dots);
+  const slider=el('input');slider.type='range';slider.min='0';slider.max='23';slider.step='1';
+  slider.value=String(selectedHour);slider.setAttribute('aria-label','조회 시간대');
+  const readout=el('div',undefined,'floating-hour-readout');
+  readout.setAttribute('aria-live','polite');
+  function showHour(){
+   selectedHour=Number(slider.value);
+   const time=hourLabel(selectedHour);
+   slider.setAttribute('aria-valuetext',time);
+   cursor.setAttribute('x1',x(selectedHour));cursor.setAttribute('x2',x(selectedHour));
+   readout.replaceChildren(el('strong',time),...series.map((group,index)=>{
+    const value=group.hours[selectedHour],dot=dots[index];
+    dot.setAttribute('visibility',value===null?'hidden':'visible');
+    if(value!==null){dot.setAttribute('cx',x(selectedHour));dot.setAttribute('cy',y(value));}
+    return el('span',group.date+' '+(value===null?'미제공':format(value)),group.style);
+   }));
+  }
+  slider.oninput=showHour;showHour();
+  section.append(el('h4','시간대별 유동인구 비교'),legend,plot,slider,readout);
+  return section;
  }
  function render(){
   body.replaceChildren();

@@ -42,6 +42,20 @@
 .visitor-trend-bar.city { background: #4b6c98; }
 .visitor-trend-missing { background: repeating-linear-gradient(135deg,#e3e9e4 0 3px,#f4f7f4 3px 6px); }
 
+.floating-hour-chart { display: block; width: 100%; height: auto; margin-top: 6px; }
+.floating-hour-chart text { fill: #52635b; font-size: 10px; }
+.floating-hour-grid { stroke: #dbe5dc; }
+.floating-hour-cursor { stroke: #829087; stroke-dasharray: 3 3; }
+.floating-hour-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.floating-hour-line.local { stroke: #247754; }
+.floating-hour-line.city { stroke: #4b6c98; stroke-dasharray: 4 2; }
+.floating-hour-dot.local { fill: #247754; }
+.floating-hour-dot.city { fill: #4b6c98; }
+#floatingPopulationPanel input[type="range"] { display: block; width: 82.5%; margin: 2px 0 8px 13.75%; accent-color: #247754; }
+.floating-hour-readout { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.floating-hour-readout .local { color: #21664f; }
+.floating-hour-readout .city { color: #3f5e87; }
+
 .guideline-review {
   padding: 12px;
   margin: 12px 0;

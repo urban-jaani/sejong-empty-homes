@@ -16,7 +16,8 @@
 .trend-compare-legend .local::before, .trend-compare-bar.local { background: #247754; }
 .trend-compare-legend .age-0::before, .trend-compare-bar.age-0 { background: #247754; }
 .trend-compare-legend .age-1::before, .trend-compare-bar.age-1 { background: #4b6c98; }
-.trend-compare-legend .age-2::before, .trend-compare-bar.age-2 { background: #9a5b23; }
+.trend-compare-legend .age-2::before, .trend-compare-bar.age-2 { background: #78558c; }
+.trend-compare-legend .age-3::before, .trend-compare-bar.age-3 { background: #9a5b23; }
 .trend-compare-year { margin: 6px 0; padding: 6px 0; border-top: 1px solid #dbe5dc; font-size: 11px; }
 .trend-compare-row { grid-template-columns: 5.5em minmax(24px, 1fr) 10em; }
 .trend-compare-row > .city { color: #3f5e87; }

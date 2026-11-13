@@ -29,14 +29,15 @@ async function loadStats(client,year,signal){
  return validateSnapshot({format:'sejong-sgis-census',version:1,year:Number(year),cityCode:code,cityName:String(sejong[0].addr_name),queriedAt:new Date().toISOString(),total:{population:numeric(totalPop.tot_ppltn),households:numeric(totalHouse.household_cnt),averageAge:numeric(totalPop.avg_age)},regions:[...merged.values()]});
 }
 // SGIS 인구주택총조사 연령 코드. 청년 참고 구간은 20~39세입니다.
-const DEMAND_GROUPS=Object.freeze({children:'유소년 0~14세',young:'20~39세',older:'고령 65세 이상'});
+const DEMAND_GROUPS=Object.freeze({children:'유소년 0~14세',young:'20~39세',middle:'40~64세',older:'고령 65세 이상'});
+const MIDDLE_AGE_CODES=['09','10','11','12','13'];
 
 async function loadDemand(client,snapshot,signal){
  const base=validateSnapshot(snapshot),regions=base.regions.filter(region=>region.code.length===8);
  if(!regions.length)throw Error('읍·면·동 인구 통계를 먼저 연결하세요.');
  const queries=[
   ['singleHouseholds','/stats/household.json','household_type','A0','household_cnt'],
-  ...['22','32','33','24'].map(code=>[code,'/stats/searchpopulation.json','age_type',code,'population'])
+  ...['22','32','33',...MIDDLE_AGE_CODES,'24'].map(code=>[code,'/stats/searchpopulation.json','age_type',code,'population'])
  ];
  const tables=new Map();
  const query=async(path,key,value,code,low)=>{
@@ -67,8 +68,10 @@ async function loadDemand(client,snapshot,signal){
  const demand=regions.map(region=>{
   const get=key=>tables.get(key).get(region.code)??null;
   const twenties=get('32'),thirties=get('33');
+  const middleAges=MIDDLE_AGE_CODES.map(get);
   return {code:region.code,singleHouseholds:get('singleHouseholds'),children:get('22'),
-   young:twenties===null||thirties===null?null:twenties+thirties,older:get('24')};
+   young:twenties===null||thirties===null?null:twenties+thirties,
+   middle:middleAges.includes(null)?null:middleAges.reduce((sum,value)=>sum+value,0),older:get('24')};
  });
  if(!demand.some(row=>['singleHouseholds',...Object.keys(DEMAND_GROUPS)].some(key=>row[key]!==null))){
   throw Error(base.year+'년 읍·면·동의 1인 가구·연령별 인구를 확인하지 못했습니다.');

@@ -43,11 +43,11 @@ function init(){
  const status=el('p','CSV 원본을 선택하세요.','spatial-note');status.setAttribute('role','status');
  input.append(el('h3','행정동별 유동인구'),link,file,clear,status);left.append(input);
  const panel=el('details',undefined,'readiness-panel');panel.id='floatingPopulationPanel';panel.open=true;
- const month=el('select'),hour=el('select');
- const monthLabel=el('label','시간대 그래프 기준월 '),hourLabelElement=el('label','월별 비교 시간대 ');
- monthLabel.append(month);hourLabelElement.append(hour);
+ const month=el('select'),comparison=el('select');
+ const monthLabel=el('label','기준월 '),comparisonLabel=el('label','비교월 ');
+ monthLabel.append(month);comparisonLabel.append(comparison);
  const controls=el('div',undefined,'nearby-review-controls');
- controls.append(monthLabel,hourLabelElement);
+ controls.append(monthLabel,comparisonLabel);
  const body=el('div');
  panel.append(el('summary','읍·면·동 유동인구'),controls,body);results.append(panel);
  const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':floating-population:v1';
@@ -61,21 +61,30 @@ function init(){
   }));
   select.value=entries.some(([value])=>value===previous)?previous:(entries[0]?.[0]??'');
  }
- fill(hour,Array.from({length:24},(_,index)=>[String(index),hourLabel(index)]));
- hour.value='14';
- function chart(title,entries){
+ function chart(series){
   const section=el('section',undefined,'population-trend-indicator');
-  const list=el('ul',undefined,'visitor-trend-chart'),max=Math.max(1,...entries.map(([,value])=>value??0));
-  for(const [label,value] of entries){
-   const row=el('li',undefined,'visitor-trend-row');
-   const track=el('span',undefined,'visitor-trend-track');track.setAttribute('aria-hidden','true');
-   if(value===null)track.className+=' visitor-trend-missing';
-   else{
-    const bar=el('span',undefined,'visitor-trend-bar');bar.style.width=value/max*100+'%';track.append(bar);
+  const legend=el('div',undefined,'trend-compare-legend');
+  for(const group of series)legend.append(el('span',group.date,group.style));
+  const list=el('ul',undefined,'visitor-trend-chart');
+  const max=Math.max(1,...series.flatMap(group=>group.hours.map(value=>value??0)));
+  for(let index=0;index<24;index++){
+   const time=hourLabel(index),item=el('li',undefined,'trend-compare-year');
+   item.append(el('strong',time));
+   for(const group of series){
+    const value=group.hours[index],caption=value===null?'미제공':format(value);
+    const row=el('div',undefined,'visitor-trend-row');
+    row.setAttribute('aria-label',time+' '+group.date+' '+caption);
+    const track=el('span',undefined,'visitor-trend-track');track.setAttribute('aria-hidden','true');
+    if(value===null)track.className+=' visitor-trend-missing';
+    else{
+     const bar=el('span',undefined,'visitor-trend-bar '+group.style);
+     bar.style.width=value/max*100+'%';track.append(bar);
+    }
+    row.append(el('span',group.date),track,el('span',caption));item.append(row);
    }
-   row.append(el('span',label),track,el('span',value===null?'미제공':format(value)));list.append(row);
+   list.append(item);
   }
-  section.append(el('h4',title),list);return section;
+  section.append(el('h4','시간대별 유동인구 비교'),legend,list);return section;
  }
  function render(){
   body.replaceChildren();
@@ -86,14 +95,16 @@ function init(){
     !selected?'지도에서 빈집을 선택하세요.':region?region+' 자료가 이 CSV에 없습니다.':'빈집의 읍·면·동을 확인할 수 없습니다.';
    body.append(el('p',text,'spatial-note'));return;
   }
-  const dates=[...periods.keys()].sort();
-  fill(month,[...dates].reverse().map(date=>[date,date]));
-  const period=periods.get(month.value),index=Number(hour.value);
+  const dates=[...periods.keys()].sort().reverse();
+  fill(month,dates.map(date=>[date,date]));
+  const period=periods.get(month.value);
+  const comparable=dates.filter(date=>date!==month.value&&periods.get(date).code===period.code);
+  fill(comparison,comparable.length?comparable.map(date=>[date,date]):[['','비교할 월 없음']]);
+  comparison.disabled=!comparable.length;
+  const series=[{date:month.value,hours:period.hours,style:'local'}];
+  if(comparison.value)series.push({date:comparison.value,hours:periods.get(comparison.value).hours,style:'city'});
   body.append(el('p',region+' · 이동통신 기반 월별 시간대별 일평균','trend-scope'),
-   chart(month.value+' 시간대별 유동인구',period.hours.map((value,i)=>[hourLabel(i),value])),
-   chart(hourLabel(index)+' 월별 유동인구',dates.map(date=>{
-    const row=periods.get(date);return [date,row.code===period.code?row.hours[index]:null];
-   })),
+   chart(series),
    el('p','출처 세종특별자치시. 동일인이 여러 시간대에 집계될 수 있어 시간대별 인구를 합산하지 않습니다.','spatial-note'));
  }
  api.evidence=target=>{
@@ -132,7 +143,7 @@ function init(){
   try{root.localStorage.removeItem(key);restore();}
   catch{status.textContent='저장 자료를 지우지 못했습니다.';}
  };
- month.onchange=hour.onchange=render;
+ month.onchange=comparison.onchange=render;
  root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});
  root.addEventListener('vacancy-house-selected',event=>{
   selected=event.detail?.points?.[0]||event.detail?.records?.[0]||null;render();

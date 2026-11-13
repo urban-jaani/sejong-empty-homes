@@ -38,6 +38,7 @@
 .visitor-trend-row > :last-child { text-align: right; }
 .visitor-trend-track { display: block; height: 10px; background: #edf1ed; border-radius: 2px; overflow: hidden; }
 .visitor-trend-bar { display: block; height: 100%; background: #247754; border-radius: 2px; }
+.visitor-trend-bar.city { background: #4b6c98; }
 .visitor-trend-missing { background: repeating-linear-gradient(135deg,#e3e9e4 0 3px,#f4f7f4 3px 6px); }
 
 .guideline-review {

@@ -113,11 +113,9 @@ function reviewStages(input,facts,core){
 const GUIDELINE_SOURCE='출처 · 2025년 빈집 정비·활용 가이드라인 연구 2.1~3.2절';
 const GUIDELINE_NEXT='활용 유형을 정하기 전 주민 의견을 수렴하세요. 이후 정비계획과의 연계, 공공·민간 사업방식, 운영주체와 재원을 검토합니다.';
 
-function renderReviewStages(el,model,openStages,onPrint){
+function renderReviewStages(el,model,openStages){
  const review=model.reviewStages,section=el('section');section.className='guideline-review';
- const print=el('button','분석표 인쇄·PDF 저장');
- print.type='button';print.onclick=onPrint;
- section.append(el('h3','빈집 입지·수요 종합분석'),print,el('p','정비 유형과 제약 → 지역 수요와 시설 → 활용 후보 검토'));
+ section.append(el('h3','빈집 입지·수요 종합분석'),el('p','정비 유형과 제약 → 지역 수요와 시설 → 활용 후보 검토'));
  if(review.priority.length){
   const list=el('ul');list.className='guideline-priority';
   for(const text of review.priority)list.append(el('li',text));
@@ -278,8 +276,12 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  const detailsButton=el('button','아래에서 활용 검토 상세 보기');detailsButton.type='button';
  detailsButton.onclick=()=>{box.open=true;box.scrollIntoView?.({block:'start'});};
  overview.append(detailsButton);
+ const print=el('button','분석표 인쇄·PDF 저장');print.type='button';
+ print.onclick=()=>printReview(root,doc,el,model);
+ overview.insertBefore(print,overview.firstChild);
  const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','입지 점수 참고'),renderRanking(model));
- box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages,()=>printReview(root,doc,el,model)),renderSizeCandidates(doc,model),ranking);const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
+ overview.append(ranking);
+ box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages),renderSizeCandidates(doc,model));const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
  for(const use of model.uses){const part=el('details');part.open=openUses.has(use.id)?openUses.get(use.id):use.id==='housing';part.append(el('summary',use.title));part.ontoggle=()=>openUses.set(use.id,part.open);const table=el('table');table.className='readiness-table purpose-review-table';const head=el('tr');for(const title of ['검토 항목','연결 근거와 확인사항'])head.append(el('th',title));table.append(head);for(const f of use.items){const tr=el('tr'),label=el('td',f.label),evidence=el('td'),gap=el('p','추가 확인: '+f.gap);evidence.append(el('strong',states[f.state]||'미확인'),el('p',f.value));if(f.source){const source=el('p',f.source);source.className='spatial-note';evidence.append(source);}evidence.append(gap);tr.append(label,evidence);table.append(tr);}part.append(table,el('h4','용도별 다음 확인사항'));const list=el('ul');for(const n of use.next)list.append(el('li',n));part.append(list);box.append(part);}
  }
  const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed','vacancy-sgis-trend-changed','vacancy-floating-population-changed','vacancy-resident-population-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();

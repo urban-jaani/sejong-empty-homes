@@ -18,13 +18,31 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  radius.value='500';
  const radiusLabel=el('label','빈집 기준 반경 ');radiusLabel.append(radius);
  const controls=el('div',undefined,'nearby-review-controls');controls.append(radiusLabel,mapButton);
- box.append(summary,controls,body);host.append(box);let data=null,selected=null,showOnMap=false,layer=null,serial=0,queue=Promise.resolve();const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':grid-population-trend:v1';
+ box.append(summary,body);host.append(box);let data=null,selected=null,showOnMap=false,layer=null,serial=0,queue=Promise.resolve();const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':grid-population-trend:v1';
  root.VacancyGridPopulationTrend.evidence=(point,radius=500)=>data?analyze(data,point,radius):{state:'missing'};
  const notify=()=>root.dispatchEvent(new Event('vacancy-grid-trend-data-changed'));
  function store(mode,value){const action=()=>new Promise((resolve,reject)=>{const req=root.indexedDB.open('sejong-grid-population-trend-v1',1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('data'))req.result.createObjectStore('data');};req.onerror=()=>reject(Error('저장소 연결 실패'));req.onsuccess=()=>{const db=req.result;try{const tx=db.transaction('data',mode==='get'?'readonly':'readwrite'),s=tx.objectStore('data'),r=mode==='get'?s.get(key):mode==='put'?s.put(value,key):s.delete(key);tx.oncomplete=()=>{db.close();resolve(r.result);};tx.onerror=tx.onabort=()=>{db.close();reject(Error('브라우저 저장 실패'));};}catch(e){db.close();reject(e);}};});const result=queue.then(action,action);queue=result.catch(()=>{});return result;}
  const clear=()=>{layer?.remove();layer=null;};
  const current=()=>data?analyze(data,selected?.point,Number(radius.value)):null;
  function draw(m=current()){clear();const map=root.VacancyNeighborhoodMapBridge?.getMap?.();if(!showOnMap||m?.state!=='ready'||!map||!root.L||!root.VacancyNeighborhoodMap?.cellGeometry)return;if(!map.getPane('gridPopulationChange')){map.createPane('gridPopulationChange');map.getPane('gridPopulationChange').style.zIndex=415;}layer=root.L.layerGroup().addTo(map);for(const c of m.rows){const delta=change(c[5]).delta,tip=el('span',c[0]+' · '+data.years[0]+'→'+data.years[2]+': '+(delta===null?'비교 보류':(delta>0?'+':'')+delta+'명'));root.L.geoJSON({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[root.VacancyNeighborhoodMap.cellGeometry(c[1],c[2])]}},{pane:'gridPopulationChange',style:{color:m.cell?.[0]===c[0]?'#174c32':'#738575',weight:m.cell?.[0]===c[0]?2:.4,fillColor:color(c[5]),fillOpacity:.5}}).bindTooltip(tip).addTo(layer);}}
+ function populationChart(title,years,values){
+  const group=el('section',undefined,'population-trend-group');
+  group.append(el('h4',title));
+  const max=Math.max(1,...values);
+  for(const [index,year] of years.entries()){
+   const value=values[index],row=el('div',undefined,'population-trend-row');
+   const track=el('span',undefined,'population-trend-track');
+   track.setAttribute('aria-hidden','true');
+   if(value!==null){
+    const bar=el('span',undefined,'population-trend-bar');
+    bar.style.width=value/max*100+'%';
+    track.append(bar);
+   }
+   row.append(el('span',year+'년'),track,el('span',value===null?'미제공':value.toLocaleString('ko-KR')+'명'));
+   group.append(row);
+  }
+  return group;
+ }
  function render(){
   body.replaceChildren();
   const m=current();
@@ -33,14 +51,10 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   if(!data)body.append(el('p','자료관리 → 분석자료 → 연도별 100m 격자인구에서 JSON을 연결하세요.','spatial-note'));
   else if(mapButton.disabled)body.append(el('p','좌표가 있는 빈집을 선택하세요.','spatial-note'));
   else{
-   const {range}=m;
-   const totals=el('dl',undefined,'layout-house-fields');
-   for(const [index,year] of m.years.entries()){
-    const row=el('div',undefined,'layout-house-field'),value=range.values[index];
-    row.append(el('dt',year+'년'),el('dd',value===null?'미제공':value.toLocaleString('ko-KR')+'명'));
-    totals.append(row);
-   }
-   body.append(el('h4','반경 '+m.radius.toLocaleString('ko-KR')+'m 거주인구'),totals,
+   const {cell,range,years}=m;
+   const cellChart=populationChart('빈집이 속한 100m 격자 거주인구',years,cell?.[5]??years.map(()=>null));
+   if(cell)cellChart.append(el('p','격자 코드 '+cell[0],'spatial-note'));
+   body.append(cellChart,controls,populationChart('반경 '+m.radius.toLocaleString('ko-KR')+'m 거주인구',years,range.values),
     el('p','중심점이 반경 안에 있고 3개 연도 모두 값이 있는 100m 격자 '+range.common+'/'+range.expected+'개 합계','spatial-note'));
    if(showOnMap)body.append(el('p','파랑 증가 / 주황 감소 / 밝은색 동일 / 회색 미제공','spatial-note'));
   }

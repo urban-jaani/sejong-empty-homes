@@ -107,7 +107,7 @@ function reviewStages(input,facts,core){
  return{condition,priority,candidates:[
   {title:'기존 건물 활용',text:'안전과 수선 범위, 소유자 동의를 확인한 뒤 연면적별 후보를 실제 이용 수요와 대조하세요. '+(range?.change?.delta<0?'비교 가능한 500m 격자의 인구가 줄었습니다. 방문·귀농귀촌 유입과 이용 의향을 확인하고, 기존 건물 안에서 운영할 소규모 기능부터 비교하세요.':'')},
   {title:'단순 철거 또는 철거 후 토지 활용',text:'철거 필요성이 확인되면 단순 철거와 정원·쉼터·텃밭 등 토지 활용을 비교하세요. 출입과 이용 조건, 관리 주체를 확인합니다.'},
-  ...(grouped?[{title:'주변 빈집과 연계 활용',text:'반경 100m에 다른 조사 주소가 '+nearby.survey.length+'곳 있습니다. 실제 인접 필지와 진입로, 정비 일정, 소유자별 동의 여부를 대조하세요.'}]:[])
+  ...(grouped?[{id:'nearby',title:'주변 빈집과 연계 활용',text:'반경 100m에 다른 조사 주소가 '+nearby.survey.length+'곳 있습니다. 실제 인접 필지와 진입로, 정비 일정, 소유자별 동의 여부를 대조하세요.'}]:[])
  ]};
 }
 const GUIDELINE_SOURCE='출처 · 2025년 빈집 정비·활용 가이드라인 연구 2.1~3.2절';
@@ -246,10 +246,17 @@ function build(input,core=root.VacancySpatialCore){
  ];
  return{address:target.address||'',facts,reviewStages:reviewStages(input,facts,core),sizeCandidates:sizeCandidates({...input,res,records,reports},facts,core),uses:uses.map(u=>({...u,items:u.keys.map(k=>facts[k])})),ranking:rank(input,input.rankSettings),scope:'연결된 자료의 근거와 미확인 항목으로 활용 후보를 검토합니다. 최종 적합성·실행 승인·철거 판정이 아닙니다.'};
 }
-function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,host=doc.getElementById('reusePanel');if(!host)return;const el=(tag,s)=>{const n=doc.createElement(tag);if(s!==undefined)n.textContent=s;return n;},box=el('details');box.id='purposeReview';box.className='readiness-panel';host.insertBefore(box,host.firstChild||null);const overview=el('section');overview.id='purposeReviewSummary';overview.className='readiness-panel';host.append(overview);let selected=null,timer,settings={},rankingOpen=false,methodOpen=false,settingsMessage='';const storageScope='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname,openUses=new Map(),openStages=new Set(),settingsKey=storageScope+':purpose-rank-settings:v1';
+function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,host=doc.getElementById('reusePanel');if(!host)return;const el=(tag,s)=>{const n=doc.createElement(tag);if(s!==undefined)n.textContent=s;return n;},box=el('details');box.id='purposeReview';box.className='readiness-panel';host.insertBefore(box,host.firstChild||null);const overview=el('section');overview.id='purposeReviewSummary';overview.className='readiness-panel';host.append(overview);
+ const detailsButton=el('button','아래에서 활용 검토 상세 보기');
+ detailsButton.id='purposeReviewDetailsButton';
+ detailsButton.type='button';
+ detailsButton.setAttribute('aria-controls',box.id);
+ detailsButton.onclick=()=>{box.open=true;box.scrollIntoView?.({block:'start'});};
+ host.append(detailsButton);
+ let selected=null,timer,settings={},rankingOpen=true,methodOpen=false,settingsMessage='';const storageScope='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname,openUses=new Map(),openStages=new Set(),settingsKey=storageScope+':purpose-rank-settings:v1';
  try{const saved=root.localStorage?.getItem(settingsKey);if(saved){const parsed=JSON.parse(saved),checked=rank({},parsed);settings={...checked.config,weights:checked.weights};}}catch{settingsMessage='저장된 산정 기준이 올바르지 않아 기본값으로 시작했습니다.';}
  function renderRanking(model){
-  const ranking=model.ranking,section=el('section');section.id='purposeRanking';section.append(el('h3','활용방향 잠정 검토순위'),el('p','같은 빈집의 활용방향을 임시 입지지표로 비교합니다. 최종 활용 추천이나 안전 판정이 아닙니다.'));for(const warning of ranking.warnings){const p=el('p',warning);p.className='spatial-note';section.append(p);}
+  const ranking=model.ranking,section=el('section');section.id='purposeRanking';section.append(el('p','같은 빈집의 활용방향을 임시 입지지표로 비교합니다. 최종 활용 추천이나 안전 판정이 아닙니다.'));for(const warning of ranking.warnings){const p=el('p',warning);p.className='spatial-note';section.append(p);}
   for(const item of ranking.items){const card=el('article');card.className='purpose-rank-card';const tied=item.rank!==null&&ranking.items.filter(r=>r.rank===item.rank).length>1;card.append(el('h4',item.status==='provisional'?(tied?'공동 ':'')+'잠정 '+item.rank+'순위 · '+item.title:item.title+' · '+(item.status==='deferred'?'판단 보류':'자료 부족으로 순위 보류')));if(item.status==='provisional')card.append(el('p','임시 비교점수 '+item.score.toFixed(1)+'/100 · 점수산정 자료 충족도 '+Math.round(item.coverage)+'%'));else card.append(el('p',item.holdReason));
    if(item.status==='insufficient')card.append(el('p','점수산정 자료 충족도 '+Math.round(item.coverage)+'% · 미확인을 0점으로 처리하지 않았습니다.'));
    const reason=el('details');reason.append(el('summary','근거·미확인 사항 보기'));if(item.details.length){const list=el('ul');for(const d of item.details)list.append(el('li',d.label+': '+d.value+' · '+(d.score===null?'미확인으로 점수에서 제외':'환산 '+d.score.toFixed(1)+'점')+' · 가중치 '+d.weight+(d.source?' · '+d.source:'')));reason.append(list);if(item.missing.length)reason.append(el('p','점수에 넣지 못한 지표: '+item.missing.join(', ')));}
@@ -262,7 +269,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   apply.onclick=()=>{try{const next={weights:{}};for(const[k,input]of Object.entries(controls)){if(!input.value.trim())throw Error('빈 환산 기준이 있습니다.');next[k]=Number(input.value);}for(const[id,inputs]of Object.entries(weightInputs)){next.weights[id]={};for(const[k,input]of Object.entries(inputs)){if(!input.value.trim())throw Error('빈 가중치가 있습니다.');next.weights[id][k]=Number(input.value);}}save(next);}catch(e){message.textContent=e.message;}};
   reset.onclick=()=>save({});method.append(apply,reset,message);section.append(method);return section;
  }
- function render(){overview.replaceChildren(el('h3','활용 검토 요점'));box.replaceChildren(el('summary','용도별 활용 검토표'));if(!selected?.address){overview.append(el('p','지도에서 빈집을 선택하세요.'));box.append(el('p','지도에서 빈집을 선택하면 연결된 자료로 네 가지 활용 검토표를 채웁니다.'));return;}box.open=true;
+ function render(){detailsButton.disabled=!selected?.address;overview.replaceChildren(el('h3','활용 검토 요점'));box.replaceChildren(el('summary','용도별 활용 검토표'));if(!selected?.address){overview.append(el('p','지도에서 빈집을 선택하세요.'));box.append(el('p','지도에서 빈집을 선택하면 연결된 자료로 네 가지 활용 검토표를 채웁니다.'));return;}box.open=true;
  const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),census:root.VacancyPopulationTrend?.evidence?.(target),floatingPopulation:root.VacancyFloatingPopulation?.evidence?.(target),residentPopulation:root.VacancyResidentPopulation?.evidence?.(target),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
  if(model.reviewStages.priority.length){
   const notes=el('ul');
@@ -270,16 +277,13 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   overview.append(el('strong','먼저 확인할 기록'),notes);
  }
  const candidates=el('ul');
- for(const item of model.reviewStages.candidates)candidates.append(el('li',item.title));
+ for(const item of model.reviewStages.candidates)if(item.id!=='nearby')candidates.append(el('li',item.title));
  overview.append(el('strong','검토 방향'),candidates);
  if(model.sizeCandidates.band)overview.append(el('p',model.sizeCandidates.band));
- const detailsButton=el('button','아래에서 활용 검토 상세 보기');detailsButton.type='button';
- detailsButton.onclick=()=>{box.open=true;box.scrollIntoView?.({block:'start'});};
- overview.append(detailsButton);
  const print=el('button','분석표 인쇄·PDF 저장');print.type='button';
  print.onclick=()=>printReview(root,doc,el,model);
  overview.insertBefore(print,overview.firstChild);
- const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','입지 점수 참고'),renderRanking(model));
+ const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','활용방향 잠정 검토순위'),renderRanking(model));
  overview.append(ranking);
  box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages),renderSizeCandidates(doc,model));const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
  for(const use of model.uses){const part=el('details');part.open=openUses.has(use.id)?openUses.get(use.id):use.id==='housing';part.append(el('summary',use.title));part.ontoggle=()=>openUses.set(use.id,part.open);const table=el('table');table.className='readiness-table purpose-review-table';const head=el('tr');for(const title of ['검토 항목','연결 근거와 확인사항'])head.append(el('th',title));table.append(head);for(const f of use.items){const tr=el('tr'),label=el('td',f.label),evidence=el('td'),gap=el('p','추가 확인: '+f.gap);evidence.append(el('strong',states[f.state]||'미확인'),el('p',f.value));if(f.source){const source=el('p',f.source);source.className='spatial-note';evidence.append(source);}evidence.append(gap);tr.append(label,evidence);table.append(tr);}part.append(table,el('h4','용도별 다음 확인사항'));const list=el('ul');for(const n of use.next)list.append(el('li',n));part.append(list);box.append(part);}

@@ -100,12 +100,12 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   const [[householdLabel,householdUnit],...ageSeries]=DEMOGRAPHIC_SERIES;
   const [households,...ageValues]=cell.slice(3);
   const ageMax=Math.max(1,...ageValues.flat());
-  const ageChart=el('section');
-  ageChart.append(el('h5','연령별 인구'),el('p','연령대별 막대는 같은 눈금을 사용합니다.','spatial-note'));
+  const charts=el('div',undefined,'grid-demographics-charts');
+  charts.append(populationChart(householdLabel,demographics.years,households,householdUnit));
   for(const [index,[label,unit]] of ageSeries.entries()){
-   ageChart.append(populationChart(label,demographics.years,ageValues[index],unit,ageMax));
+   charts.append(populationChart(label,demographics.years,ageValues[index],unit,ageMax));
   }
-  demographicsChart.append(populationChart(householdLabel,demographics.years,households,householdUnit),ageChart,
+  demographicsChart.append(charts,
    el('p','SGIS 인구주택총조사 · 격자 코드 '+cell[0]+' · 연령대 합계는 세부 구간 값이 모두 있는 해에 표시합니다.','spatial-note'));
  }
  demographicsBox.append(el('h4','빈집이 속한 1km 격자 인구·가구'),demographicsChart);

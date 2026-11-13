@@ -57,7 +57,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  const mapButton=el('button','격자인구 지도보기');mapButton.type='button';mapButton.setAttribute('aria-pressed','false');
  const radius=el('select');
  for(const metres of [300,500,1000]){
-  const option=el('option',metres.toLocaleString('ko-KR')+'m');
+  const option=el('option',metres===1000?'1km':metres+'m');
   option.value=String(metres);radius.append(option);
  }
  radius.value='500';
@@ -168,7 +168,17 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   renderDemographics();
   draw(m);
  }
- radius.onchange=render;
+ radius.onchange=()=>{
+  const metres=Number(radius.value);
+  if(root.VacancyNeighborhood?.getRadius?.()!==metres)root.VacancyNeighborhood?.setRadius?.(metres);
+  render();
+ };
+ root.addEventListener('vacancy-neighborhood-data-changed',()=>{
+  const metres=root.VacancyNeighborhood?.getRadius?.();
+  if(![300,500,1000].includes(metres)||radius.value===String(metres))return;
+  radius.value=String(metres);
+  render();
+ });
  mapButton.onclick=()=>{
   if(mapButton.disabled)return;
   showOnMap=!showOnMap;render();

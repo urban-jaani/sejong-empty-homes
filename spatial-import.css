@@ -66,9 +66,18 @@
 }
 .guideline-review h3 { margin-top: 0; }
 .guideline-priority { padding-inline-start: 18px; color: #784816; }
-.guideline-stages { list-style: none; padding: 0; }
-.guideline-stages li { border-top: 1px solid #dbe5dc; padding: 6px 0; }
-.guideline-stages summary { cursor: pointer; font-weight: 700; }
+.guideline-table-wrap { max-width: 100%; overflow-x: auto; margin: 10px 0 14px; }
+.guideline-table { width: 100%; min-width: 580px; table-layout: fixed; border-collapse: collapse; background: #fff; font-size: 12px; }
+.guideline-table th, .guideline-table td { padding: 8px; border-bottom: 1px solid #dbe5dc; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.guideline-table thead th { background: #e5efe8; color: #244b3b; }
+.guideline-table thead th:first-child { width: 19%; }
+.guideline-table thead th:nth-child(2) { width: 80px; }
+.guideline-table thead th:last-child { width: 31%; }
+.guideline-table tbody tr:nth-child(even) { background: #f7faf7; }
+.guideline-table td p { margin: 0; }
+.guideline-table td p + p, .guideline-table td button { margin-top: 5px; }
+.guideline-status { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #e5f0e8; color: #21664f; white-space: nowrap; }
+.guideline-status-missing { background: #fff0d8; color: #79551d; }
 .guideline-review article { border-top: 1px solid #dbe5dc; padding-top: 8px; }
 
 #vacancyReviewPrint { display: none; }

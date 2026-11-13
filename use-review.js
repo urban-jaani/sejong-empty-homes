@@ -113,7 +113,7 @@ function reviewStages(input,facts,core){
 const GUIDELINE_SOURCE='출처 · 2025년 빈집 정비·활용 가이드라인 연구 2.1~3.2절';
 const GUIDELINE_NEXT='활용 유형을 정하기 전 주민 의견을 수렴하세요. 이후 정비계획과의 연계, 공공·민간 사업방식, 운영주체와 재원을 검토합니다.';
 
-function renderReviewStages(el,model,openStages){
+function renderReviewStages(el,model){
  const review=model.reviewStages,section=el('section');section.className='guideline-review';
  section.append(el('h3','빈집 입지·수요 종합분석'),el('p','정비 유형과 제약 → 지역 수요와 시설 → 활용 후보 검토'));
  if(review.priority.length){
@@ -121,13 +121,27 @@ function renderReviewStages(el,model,openStages){
   for(const text of review.priority)list.append(el('li',text));
   section.append(el('strong','먼저 확인할 기록'),list);
  }
- const stages=el('ol');stages.className='guideline-stages';
+ const tableWrap=el('div');
+ tableWrap.className='guideline-table-wrap';
+ tableWrap.tabIndex=0;
+ tableWrap.setAttribute('role','region');
+ tableWrap.setAttribute('aria-label','빈집 입지·수요 종합분석 표');
+ const table=el('table'),head=el('thead'),headRow=el('tr'),body=el('tbody');
+ table.className='guideline-table';
+ for(const label of ['검토 항목','자료 상태','확인된 내용','추가 확인사항']){
+  const cell=el('th',label);
+  cell.setAttribute('scope','col');
+  headRow.append(cell);
+ }
+ head.append(headRow);
  for(const stage of review.condition){
-  const item=el('li'),details=el('details');
-  details.open=openStages.has(stage.title);
-  details.ontoggle=()=>{if(details.open)openStages.add(stage.title);else openStages.delete(stage.title);};
-  details.append(el('summary',stage.title+' · '+(stage.rows.length?'자료 있음':'확인 필요')));
-  for(const value of stage.rows.length?stage.rows:['연결된 확인 자료 없음'])details.append(el('p',value));
+  const row=el('tr'),title=el('th',stage.title),statusCell=el('td'),evidenceCell=el('td');
+  title.setAttribute('scope','row');
+  const status=el('span',stage.rows.length?'자료 있음':'확인 필요');
+  status.className=stage.rows.length?'guideline-status':'guideline-status guideline-status-missing';
+  statusCell.append(status);
+  for(const value of stage.rows) evidenceCell.append(el('p',value));
+  if(!stage.rows.length) evidenceCell.append(el('p','연결 자료 없음'));
   if(stage.showFloatingPopulation){
    const button=el('button','주변환경에서 유동인구 보기');
    button.type='button';
@@ -138,11 +152,14 @@ function renderReviewStages(el,model,openStages){
     root.VacancyLayout?.showEnvironment?.();
     panel.scrollIntoView({block:'nearest'});
    };
-   details.append(button);
+   evidenceCell.append(button);
   }
-  details.append(el('p',stage.next));item.append(details);stages.append(item);
+  row.append(title,statusCell,evidenceCell,el('td',stage.next));
+  body.append(row);
  }
- section.append(stages,el('h4','조건별 활용 후보'));
+ table.append(head,body);
+ tableWrap.append(table);
+ section.append(tableWrap,el('h4','조건별 활용 후보'));
  for(const candidate of review.candidates){
   const card=el('article');card.append(el('strong',candidate.title),el('p',candidate.text));section.append(card);
  }
@@ -253,7 +270,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  detailsButton.setAttribute('aria-controls',box.id);
  detailsButton.onclick=()=>{box.open=true;box.scrollIntoView?.({block:'start'});};
  host.append(detailsButton);
- let selected=null,timer,settings={},rankingOpen=true,methodOpen=false,settingsMessage='';const storageScope='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname,openUses=new Map(),openStages=new Set(),settingsKey=storageScope+':purpose-rank-settings:v1';
+ let selected=null,timer,settings={},rankingOpen=true,methodOpen=false,settingsMessage='';const storageScope='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname,openUses=new Map(),settingsKey=storageScope+':purpose-rank-settings:v1';
  try{const saved=root.localStorage?.getItem(settingsKey);if(saved){const parsed=JSON.parse(saved),checked=rank({},parsed);settings={...checked.config,weights:checked.weights};}}catch{settingsMessage='저장된 산정 기준이 올바르지 않아 기본값으로 시작했습니다.';}
  function renderRanking(model){
   const ranking=model.ranking,section=el('section');section.id='purposeRanking';section.append(el('p','같은 빈집의 활용방향을 임시 입지지표로 비교합니다. 최종 활용 추천이나 안전 판정이 아닙니다.'));for(const warning of ranking.warnings){const p=el('p',warning);p.className='spatial-note';section.append(p);}
@@ -285,7 +302,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  overview.insertBefore(print,overview.firstChild);
  const ranking=el('details');ranking.open=rankingOpen;ranking.ontoggle=()=>rankingOpen=ranking.open;ranking.append(el('summary','활용방향 잠정 검토순위'),renderRanking(model));
  overview.append(ranking);
- box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model,openStages),renderSizeCandidates(doc,model));const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
+ box.append(el('h3',model.address));const note=el('p',model.scope);note.className='spatial-note';box.append(note,renderReviewStages(el,model),renderSizeCandidates(doc,model));const states={ready:'자료 있음',historic:'과거 기록',reference:'참고 대조',different:'출처값 다름',ambiguous:'후보·값 여러 개',conflict:'연결 불일치',missing:'미확인'};
  for(const use of model.uses){const part=el('details');part.open=openUses.has(use.id)?openUses.get(use.id):use.id==='housing';part.append(el('summary',use.title));part.ontoggle=()=>openUses.set(use.id,part.open);const table=el('table');table.className='readiness-table purpose-review-table';const head=el('tr');for(const title of ['검토 항목','연결 근거와 확인사항'])head.append(el('th',title));table.append(head);for(const f of use.items){const tr=el('tr'),label=el('td',f.label),evidence=el('td'),gap=el('p','추가 확인: '+f.gap);evidence.append(el('strong',states[f.state]||'미확인'),el('p',f.value));if(f.source){const source=el('p',f.source);source.className='spatial-note';evidence.append(source);}evidence.append(gap);tr.append(label,evidence);table.append(tr);}part.append(table,el('h4','용도별 다음 확인사항'));const list=el('ul');for(const n of use.next)list.append(el('li',n));part.append(list);box.append(part);}
  }
  const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed','vacancy-sgis-trend-changed','vacancy-floating-population-changed','vacancy-resident-population-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();

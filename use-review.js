@@ -2,6 +2,11 @@
 (function(root){'use strict';
 const known=v=>v!==null&&v!==undefined&&!['','-','미기재','미제공','자료 없음','원본 자료 없음','미산정'].includes(String(v).trim());
 const norm=v=>String(v??'').trim().replace(/\s+/g,' ');
+const CARE_FACILITIES={
+ childCenter:{label:'지역아동센터',link:'기존 센터와 방과후 프로그램·공간 연계를 검토하세요.',check:'인접 권역 센터의 정원·대기와 아동의 이동 여건을 확인하세요.'},
+ care:{label:'장기요양기관',link:'기관의 서비스 유형을 확인하고 방문돌봄·상담 공간 연계를 검토하세요.',check:'방문요양 제공 범위와 고령 주민의 이동 여건을 확인하세요.'},
+ shelter:{label:'무더위쉼터',link:'기존 쉼터의 운영시간과 접근성을 확인하고 운영 공백을 보완할 휴게 기능을 검토하세요.',check:'실제 이용 가능한 경로당·쉼터와 폭염 취약 주민의 휴식 수요를 확인하세요.'}
+};
 const RANK_DEFAULTS=Object.freeze({maxDistance:1000,populationReference:100,shopReference:50,minCoverage:60,tieGap:5});
 const RANK_WEIGHTS=Object.freeze({housing:Object.freeze({bus:25,school:25,medical:25,population:25}),community:Object.freeze({bus:25,park:25,population:50}),commercial:Object.freeze({bus:20,shops:50,population:30})});
 function rank(input,settings={}){
@@ -84,6 +89,8 @@ function reviewStages(input,facts,core){
   ?grid.years.map((year,index)=>year+'년 '+range.values[index].toLocaleString('ko-KR')+'명').join(' → ')+' · 반경 500m 내 3개 연도 공통 '+range.common+'/'+range.expected+'격자'
   :null;
  const census=input.census;
+ const careChecks=Object.keys(CARE_FACILITIES).map(key=>facts[key].gap);
+ const connectedCareChecks=Object.keys(CARE_FACILITIES).filter(key=>facts[key].state==='ready').map(key=>facts[key].gap);
  const censusLine=(label,values,unit)=>{
   if(!values?.some(value=>value!==null))return [];
   const text=census.years.map((year,index)=>year+'년 '+(values[index]===null?'미제공':values[index].toLocaleString('ko-KR')+unit)).join(' → ');
@@ -101,11 +108,12 @@ function reviewStages(input,facts,core){
   {title:'5. 인구 변화와 유입',rows:[...(input.residentPopulation||[]),...censusLine('총인구',census?.population,'명'),...(population?[population]:[]),...(input.floatingPopulation||[])],next:'농촌은 행정리 인구와 귀농·귀촌 유입도 확인합니다.',showFloatingPopulation:!!input.floatingPopulation?.length},
   {title:'6. 지원이 필요한 주민',rows:censusLine('전체 1인 가구',census?.singleHouseholds,'가구'),next:'기초생활수급자, 고령·청년 1인가구, 다문화가구와 외국인 근로자 자료 및 이용 의향을 확인하세요.'},
   {title:'7. 연령대별 인구 변화',rows:(census?.ages||[]).flatMap(item=>censusLine(item.label,item.values,'명')),next:'19~39세 집계는 1세 단위 원자료로 확인하세요. 실제 돌봄·주거·복지 수요도 함께 확인합니다.'},
-  {title:'8. 생활시설과 안전',rows:[...(counts.length?['연결 자료에 수록된 직선 반경 500m 시설 · '+counts.join(' / ')]:[]),...evidence('flood')],next:'문화·쉼터와 돌봄시설의 운영 및 중복, 범죄주의 자료를 확인하세요. 농촌은 마을자원과 중심지 접근도 살펴봅니다.'}
+  {title:'8. 생활시설과 안전',rows:[...(counts.length?['연결 자료에 수록된 직선 반경 500m 시설 · '+counts.join(' / ')]:[]),...evidence(...Object.keys(CARE_FACILITIES),'flood')],next:careChecks.join(' ')}
  ];
  const grouped=nearby?.state==='ready'&&nearby.radius===100&&nearby.survey.length>0;
  return{condition,priority,candidates:[
   {title:'기존 건물 활용',text:'안전과 수선 범위, 소유자 동의를 확인한 뒤 연면적별 후보를 실제 이용 수요와 대조하세요. '+(range?.change?.delta<0?'비교 가능한 500m 격자의 인구가 줄었습니다. 방문·귀농귀촌 유입과 이용 의향을 확인하고, 기존 건물 안에서 운영할 소규모 기능부터 비교하세요.':'')},
+  ...(connectedCareChecks.length?[{id:'service',title:'돌봄·쉼터 연계 활용',text:connectedCareChecks.join(' ')}]:[]),
   {title:'단순 철거 또는 철거 후 토지 활용',text:'철거 필요성이 확인되면 단순 철거와 정원·쉼터·텃밭 등 토지 활용을 비교하세요. 출입과 이용 조건, 관리 주체를 확인합니다.'},
   ...(grouped?[{id:'nearby',title:'주변 빈집과 연계 활용',text:'반경 100m에 다른 조사 주소가 '+nearby.survey.length+'곳 있습니다. 실제 인접 필지와 진입로, 정비 일정, 소유자별 동의 여부를 대조하세요.'}]:[])
  ]};
@@ -167,6 +175,30 @@ function renderReviewStages(el,model){
  return section;
 }
 
+function populationCharts(input){
+ const charts=[];
+ function add(title,periods,values,unit,note){
+  if(!periods?.length||!values?.some(Number.isFinite))return;
+  charts.push({title,periods,values,unit,note});
+ }
+ for(const series of input.residentSeries||[])add(series.label+' 주민등록 총인구',series.periods,series.values,'명','행정안전부 주민등록인구 · 같은 기준월 비교');
+ const census=input.census;
+ if(census){
+  const note='SGIS 인구주택총조사 · '+census.region;
+  add(census.region+' 총인구',census.years,census.population,'명',note);
+  add(census.region+' 1인 가구',census.years,census.singleHouseholds,'가구',note);
+  for(const age of census.ages||[])add(census.region+' '+age.label,census.years,age.values,'명',note);
+ }
+ const grid=input.printGridTrend??input.gridTrend;
+ if(grid?.state==='ready'){
+  add('빈집이 속한 100m 격자 거주인구',grid.years,grid.cell?.[5],'명','SGIS · '+(grid.cell?.[0]||''));
+  if(grid.range?.common)add('반경 '+grid.radius+'m 거주인구',grid.years,grid.range.values,'명','SGIS 100m 격자 · 전 기간 공통 공개 '+grid.range.common+'/'+grid.range.expected+'격자 합계');
+ }
+ const demographics=input.gridDemographics;
+ for(const series of demographics?.series||[])add('1km 격자 '+series.label,demographics.years,series.values,series.unit,'SGIS · '+demographics.id);
+ return charts;
+}
+
 function renderPrintSheet(el,model,surveyYear,date){
  const sheet=el('article');
  sheet.id='vacancyReviewPrint';
@@ -176,6 +208,64 @@ function renderPrintSheet(el,model,surveyYear,date){
   const list=el('ul');
   for(const item of review.priority)list.append(el('li',item));
   sheet.append(el('h2','먼저 확인할 기록'),list);
+ }
+ const ranking=model.ranking;
+ sheet.append(el('h2','활용방향 잠정 검토순위'));
+ const ranks=el('table'),rankHead=el('thead'),rankHeader=el('tr'),rankBody=el('tbody');
+ for(const label of ['잠정 순위','활용 방향','점수 / 자료 충족도','주요 근거와 확인사항']){
+  const column=el('th',label);column.scope='col';rankHeader.append(column);
+ }
+ rankHead.append(rankHeader);ranks.append(rankHead,rankBody);
+ for(const item of ranking.items){
+  const row=el('tr'),score=el('td',item.score===null?'—':item.score.toFixed(1)+'/100');
+  if(item.coverage!==null)score.append(el('p',Math.round(item.coverage)+'%'));
+  const basis=el('td');
+  if(item.holdReason)basis.append(el('p',item.holdReason));
+  for(const reason of item.reasons)basis.append(el('p',reason));
+  if(item.missing.length)basis.append(el('p','미확인 · '+item.missing.join(', ')));
+  const tied=item.rank!==null&&ranking.items.filter(entry=>entry.rank===item.rank).length>1;
+  row.append(el('td',item.rank===null?'보류':(tied?'공동 ':'')+item.rank+'위'),el('td',item.title),score,basis);
+  rankBody.append(row);
+ }
+ const criteria=ranking.config;
+ sheet.append(ranks,el('p','적용 기준 · 거리 '+criteria.maxDistance+'m에서 0점 / 격자인구 '+criteria.populationReference+'명·상가 '+criteria.shopReference+'곳에서 100점 / 최소 자료 충족도 '+criteria.minCoverage+'% / 공동순위 '+criteria.tieGap+'점 이내'),el('p',ranking.method));
+ sheet.append(el('h2','건물 규모에 맞는 세부 활용 후보'));
+ for(const [label,area] of [['연면적',size.totalArea],['공부상 필지면적',size.parcelArea],['대장 대지면적',size.landArea]]){
+  sheet.append(el('p',label+' · '+(area.value===null?area.reason:area.value.toLocaleString('ko-KR')+'㎡ · '+area.sources.join(' / '))));
+ }
+ if(size.band)sheet.append(el('p',size.band));
+ for(const text of size.flags)sheet.append(el('p',text));
+ for(const candidate of size.candidates){
+  const card=el('section'),checks=el('ul');
+  card.className='review-print-candidate';
+  for(const item of candidate.next)checks.append(el('li',item));
+  card.append(el('h3',candidate.title),checks);
+  sheet.append(card);
+ }
+ if(!size.band)sheet.append(el('p','연면적 확인 전 세부 후보 보류'));
+ const constraints=el('ul');
+ for(const text of size.constraints)constraints.append(el('li',text));
+ sheet.append(el('h3','공통 확인사항'),constraints);
+ sheet.append(el('p',size.method));
+ sheet.append(el('h2','인구·가구 변화'));
+ if(!model.populationCharts.length)sheet.append(el('p','선택한 빈집에 연결된 시계열 자료가 없습니다.'));
+ else {
+  const charts=el('div');charts.className='review-print-charts';
+  for(const chart of model.populationCharts){
+   const card=el('section');card.className='review-print-chart';
+   card.append(el('h3',chart.title));
+   const max=Math.max(1,...chart.values.filter(Number.isFinite));
+   chart.periods.forEach((period,index)=>{
+    const value=chart.values[index],knownValue=Number.isFinite(value);
+    const row=el('div'),track=el('span');row.className='review-print-chart-row';track.className='review-print-track';track.setAttribute('aria-hidden','true');
+    if(knownValue&&value>0){const bar=el('span');bar.setAttribute('style','width:'+100*value/max+'%');track.append(bar);}
+    row.append(el('span',String(period)+(Number.isInteger(period)?'년':'')),track,el('span',knownValue?value.toLocaleString('ko-KR')+chart.unit:'미제공'));
+    card.append(row);
+   });
+   card.append(el('p',chart.note));
+   charts.append(card);
+  }
+  sheet.append(charts);
  }
  const table=el('table'),head=el('thead'),header=el('tr'),body=el('tbody');
  for(const label of ['분석 항목','자료에서 확인한 내용','추가 확인사항']){
@@ -192,11 +282,6 @@ function renderPrintSheet(el,model,surveyYear,date){
  for(const candidate of review.candidates){
   const item=el('p');item.append(el('strong',candidate.title+' · '),el('span',candidate.text));sheet.append(item);
  }
- const area=size.totalArea;
- const examples=size.candidates.map(candidate=>candidate.title).join(' / ');
- sheet.append(el('p',size.band
-  ?'연면적 '+area.value.toLocaleString('ko-KR')+'㎡ ('+area.sources.join(' / ')+') 기준 예비후보 · '+examples
-  :'규모별 후보 보류 · '+area.reason));
  const notes=el('div');notes.className='review-print-notes';
  sheet.append(el('h2','현장·회의 메모'),notes,el('p',GUIDELINE_NEXT),el('p',model.scope),el('p',GUIDELINE_SOURCE));
  return sheet;
@@ -251,17 +336,28 @@ function build(input,core=root.VacancySpatialCore){
  else fact('parking','대장 주차대수',register?.status==='multiple'?'ambiguous':register?.status==='conflict'?'conflict':'missing','미확인','','연결 대장과 실제 주차 여건을 확인하세요.');
  function facility(key,label,kinds){if(near.state!=='ready')return fact(key,label,'missing','미확인','',near.state==='coordinates-missing'?'빈집 좌표를 먼저 연결하세요.':'주변 시설·상가·격자인구 통합 JSON을 연결하세요.');const result=near.result,items=kinds.map(k=>result.facilities[k]);if(items.some(v=>!v))return fact(key,label,'missing','미확인','','해당 시설 자료를 확인하세요.');const names={bus:'정류장',school:'운영 학교',park:'공원',hospital:'병·의원',pharmacy:'약국'};const text=kinds.map((k,i)=>{const f=items[i];return(names[k]||k)+' '+(f.nearest?Math.round(f.nearest.metres).toLocaleString('ko-KR')+'m · '+f.nearest.name:'수록 시설 없음')+' / 반경 '+result.radius+'m '+f.count+'곳';}).join(' / ');return fact(key,label,'ready',text,'주변시설 자료 · '+kinds.map(k=>near.sources?.find(s=>s.kind===k)?.date||'기준일 미확인').join(' / '),'직선거리이며 보행시간·진입 가능성을 뜻하지 않습니다. 경계 밖 시설이 빠질 수 있고 공원은 입구 좌표를 보장하지 않습니다.');}
  facility('bus','대중교통 접근 자료',['bus']);facility('school','학교 접근 자료',['school']);facility('medical','의료·약국 접근 자료',['hospital','pharmacy']);facility('park','공원 접근 자료',['park']);
+ for(const [key,{label,link,check}] of Object.entries(CARE_FACILITIES)){
+  const result=near.state==='ready'?near.result:null;
+  const facility=result?.facilities?.[key];
+  const source=near.sources?.find(item=>item.kind===key);
+  const available=source?.included>0&&Number.isInteger(facility?.count);
+  const closest=facility?.nearest;
+  const nearest=Number.isFinite(closest?.metres)?' · 최근접 '+closest.name+'까지 직선 '+display(Math.round(closest.metres))+'m':'';
+  const value=available?'직선 반경 '+display(result.radius)+'m · 수록 '+display(facility.count)+'곳'+nearest:'미확인';
+  const next=available?(facility.count>0?link:check):label+' 자료의 연결 및 수록 범위를 확인하세요.';
+  fact(key,label,available?'ready':'missing',value,available?label+' · 자료 기준 '+source.date:'',next);
+ }
  if(near.state==='ready'){const p=near.result.population,cell=p.cell?String(p.cell.value===null?'비공개·미제공':display(p.cell.value)+'명'):'미수록·미확인';fact('population','격자 거주인구','ready','해당 100m 격자 '+cell+' / 반경 '+near.result.radius+'m의 격자 중심 기준 공개값 합계 '+(p.known?display(p.sum)+'명':'미확인')+' · 값 확인 '+p.known+'/'+p.total+'격자 · 미확인 '+p.unknown+'격자',near.populationYear+'년 SGIS 인구 · 2025년 경계 코드 연결','공개값 합계이며 미확인이 있으면 전체 반경 인구가 아닙니다. 생활인구·고객·주민의 이용 의향과 연령별 수요는 별도 자료가 필요합니다.');if(!p.known&&(!p.cell||p.cell.value===null))facts.population.state='missing';
  const industries=Object.entries(near.result.industries||{}).sort((a,b)=>b[1]-a[1]);fact('shops','주변 상가 분포','ready','반경 '+near.result.radius+'m 상가 '+display(near.result.facilities.shop.count)+'곳'+(industries.length?' · '+industries.map(([k,v])=>k+' '+v+'곳').join(', '):''),'상가(상권)정보 · '+(near.sources?.find(s=>s.kind==='shop')?.date||'기준일 미확인'),'업소 수는 매출·공실률·유동인구·경쟁 강도를 대신하지 않습니다. 현지 업종 수요와 운영비를 확인하세요.');}
  else{fact('population','격자 거주인구','missing','미확인','','주변환경 통합 자료와 빈집 좌표를 연결하세요.');fact('shops','주변 상가 분포','missing','미확인','','주변환경 통합 자료와 빈집 좌표를 연결하세요.');}
  fact('flood','과거 침수구역 대조',flood.state==='ready'?'reference':'missing',flood.state==='ready'?flood.count?'과거 수록 구역 '+flood.count+'행과 겹침 · 연도 '+flood.years.join(', '):'수록된 과거 구역과 겹침 없음':'미확인',flood.state==='ready'?'행정안전부 침수흔적도 · 수록 '+flood.sourceCount+'행 · 좌표계 추정에 따른 참고 대조':'',flood.state==='ready'?'공식 좌표계 확인 전의 좌표점 대조입니다. 비겹침은 안전 판정이 아니며, 미래 위험과 실제 건물 피해는 별도 확인입니다.':'침수흔적 JSON과 빈집 좌표를 연결하세요.');
  const uses=[
- {id:'housing',title:'주거 재사용',keys:['grade','approval','structure','physical','totalArea','bus','school','medical','population','usage','flood'],next:['현재 구조 안전성과 누수·설비·위생 상태 점검','수선 범위·공사비·예상 임대료 및 주거 수요 확인','현재 소유권과 임대·사용 동의, 용도변경·인허가 검토']},
- {id:'community',title:'마을 공동체 공간',keys:['totalArea','landArea','bus','park','population','zoning','owner','flood'],next:['주민의 실제 이용 의향과 필요한 프로그램 조사','운영 주체·연간 운영비·장애인 접근과 화장실·소방 여건 확인','기존 마을회관 등 공공시설과의 중복 및 현재 소유자 동의 확인']},
+ {id:'housing',title:'주거 재사용',keys:['grade','approval','structure','physical','totalArea','bus','school','medical','childCenter','care','population','usage','flood'],next:['현재 구조 안전성과 누수·설비·위생 상태 점검','수선 범위·공사비·예상 임대료 및 주거 수요 확인','현재 소유권과 임대·사용 동의, 용도변경·인허가 검토']},
+ {id:'community',title:'마을 공동체 공간',keys:['totalArea','landArea','bus','park','childCenter','care','shelter','population','zoning','owner','flood'],next:['주민의 실제 이용 의향과 필요한 프로그램 조사','운영 주체·연간 운영비·장애인 접근과 화장실·소방 여건 확인','기존 마을회관 등 공공시설과의 중복 및 현재 소유자 동의 확인']},
  {id:'commercial',title:'상업·숙박 활용',keys:['usage','totalArea','structure','shops','bus','parking','population','zone','zoning','flood'],next:['생활·방문인구, 시간대별 고객 수요와 숙박 수요 확인','원하는 업종의 건축·영업·숙박 관련 허용 조건 확인','수선비·주차·소방·설비비·운영비를 반영한 사업성 검토']},
- {id:'land',title:'철거 후 공지 활용',keys:['parcelArea','landArea','parcelShape','road','height','physical','zone','zoning','owner','flood'],next:['구조 안전과 보존·수선 대안을 비교한 뒤 철거 필요성 검토','현재 소유자 동의·권리관계·철거 절차·석면 등 유해물질 확인','주차장·쉼터·텃밭 등 용도별 토지 규제와 조성·유지관리 주체 확인']}
+ {id:'land',title:'철거 후 공지 활용',keys:['parcelArea','landArea','parcelShape','road','height','physical','zone','zoning','owner','shelter','flood'],next:['구조 안전과 보존·수선 대안을 비교한 뒤 철거 필요성 검토','현재 소유자 동의·권리관계·철거 절차·석면 등 유해물질 확인','주차장·쉼터·텃밭 등 용도별 토지 규제와 조성·유지관리 주체 확인']}
  ];
- return{address:target.address||'',facts,reviewStages:reviewStages(input,facts,core),sizeCandidates:sizeCandidates({...input,res,records,reports},facts,core),uses:uses.map(u=>({...u,items:u.keys.map(k=>facts[k])})),ranking:rank(input,input.rankSettings),scope:'연결된 자료의 근거와 미확인 항목으로 활용 후보를 검토합니다. 최종 적합성·실행 승인·철거 판정이 아닙니다.'};
+ return{address:target.address||'',facts,reviewStages:reviewStages(input,facts,core),sizeCandidates:sizeCandidates({...input,res,records,reports},facts,core),uses:uses.map(u=>({...u,items:u.keys.map(k=>facts[k])})),ranking:rank(input,input.rankSettings),populationCharts:populationCharts(input),scope:'연결된 자료의 근거와 미확인 항목으로 활용 후보를 검토합니다. 최종 적합성·실행 승인·철거 판정이 아닙니다.'};
 }
 function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse')return;const doc=root.document,host=doc.getElementById('reusePanel');if(!host)return;const el=(tag,s)=>{const n=doc.createElement(tag);if(s!==undefined)n.textContent=s;return n;},box=el('details');box.id='purposeReview';box.className='readiness-panel';host.insertBefore(box,host.firstChild||null);const overview=el('section');overview.id='purposeReviewSummary';overview.className='readiness-panel';host.append(overview);
  const detailsButton=el('button','아래에서 활용 검토 상세 보기');
@@ -287,7 +383,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
   reset.onclick=()=>save({});method.append(apply,reset,message);section.append(method);return section;
  }
  function render(){detailsButton.disabled=!selected?.address;overview.replaceChildren(el('h3','활용 검토 요점'));box.replaceChildren(el('summary','용도별 활용 검토표'));if(!selected?.address){overview.append(el('p','지도에서 빈집을 선택하세요.'));box.append(el('p','지도에서 빈집을 선택하면 연결된 자료로 네 가지 활용 검토표를 채웁니다.'));return;}box.open=true;
- const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),census:root.VacancyPopulationTrend?.evidence?.(target),floatingPopulation:root.VacancyFloatingPopulation?.evidence?.(target),residentPopulation:root.VacancyResidentPopulation?.evidence?.(target),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
+ const records=(root.VacancySpatialBridge?.records()||[]).filter(r=>norm(r.address)===norm(selected.address)),base=records[0]||{address:selected.address},point=selected.point,target={...base,longitude:point?.[0],latitude:point?.[1]},res=root.VacancySpatial?.resolve(target)||root.VacancySpatialCore.resolve({},target),model=build({target,records:records.length?records:[base],res,reports:root.VacancyReports?.find?.([target.address])||[],neighborhood:root.VacancyNeighborhood?.evidence?.(target),guideNeighborhood:root.VacancyNeighborhood?.evidence?.(target,500),nearby:root.VacancyNearbyReview?.evidence?.(selected),gridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,500),printGridTrend:root.VacancyGridPopulationTrend?.evidence?.(point,root.VacancyGridPopulationTrend.getRadius?.()||500),gridDemographics:root.VacancyGridPopulationTrend?.demographicEvidence?.(point),residentSeries:root.VacancyResidentPopulation?.trendSeries?.(target),census:root.VacancyPopulationTrend?.evidence?.(target),floatingPopulation:root.VacancyFloatingPopulation?.evidence?.(target),residentPopulation:root.VacancyResidentPopulation?.evidence?.(target),flood:root.VacancyFlood?.evidence?.(target),rankSettings:settings});
  if(model.reviewStages.priority.length){
   const notes=el('ul');
   for(const item of model.reviewStages.priority.slice(0,3))notes.append(el('li',item));
@@ -311,5 +407,5 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  }
  const later=()=>{clearTimeout(timer);timer=setTimeout(render,30);};root.addEventListener('vacancy-spatial-focus',event=>{selected=event.detail;render();});root.addEventListener('vacancy-selection-cleared',()=>{selected=null;render();});for(const event of ['vacancy-spatial-data-changed','vacancy-report-data-changed','vacancy-neighborhood-data-changed','vacancy-flood-layer','vacancy-grid-trend-data-changed','vacancy-sgis-trend-changed','vacancy-floating-population-changed','vacancy-resident-population-changed'])root.addEventListener(event,later);root.addEventListener('storage',event=>{if(!event.key||event.key.startsWith(storageScope+':'))later();});render();
 }
-const api={build,rank,sizeCandidates,renderSizeCandidates,RANK_DEFAULTS,RANK_WEIGHTS};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyPurposeReview=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
+const api={build,rank,sizeCandidates,renderSizeCandidates,renderPrintSheet,RANK_DEFAULTS,RANK_WEIGHTS};if(typeof module==='object'&&module.exports)module.exports=api;root.VacancyPurposeReview=api;if(root.document){if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init);else init();}
 })(typeof window!=='undefined'?window:globalThis);

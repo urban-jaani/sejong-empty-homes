@@ -66,6 +66,11 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  box.append(summary,body);host.append(box);let data=null,selected=null,showOnMap=false,layer=null,serial=0,queue=Promise.resolve();const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':grid-population-trend:v1';
  const demographicsKey=key+':demographics-1km';
  root.VacancyGridPopulationTrend.evidence=(point,radius=500)=>data?analyze(data,point,radius):{state:'missing'};
+ root.VacancyGridPopulationTrend.getRadius=()=>Number(radius.value);
+ root.VacancyGridPopulationTrend.demographicEvidence=point=>{
+  const cell=demographics&&demographicCell(demographics,point);
+  return cell?{id:cell[0],years:demographics.years,series:DEMOGRAPHIC_SERIES.map(([label,unit],index)=>({label,unit,values:cell[index+3]}))}:null;
+ };
  const notify=()=>root.dispatchEvent(new Event('vacancy-grid-trend-data-changed'));
  function store(mode,value,storageKey=key){const action=()=>new Promise((resolve,reject)=>{const req=root.indexedDB.open('sejong-grid-population-trend-v1',1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('data'))req.result.createObjectStore('data');};req.onerror=()=>reject(Error('저장소 연결 실패'));req.onsuccess=()=>{const db=req.result;try{const tx=db.transaction('data',mode==='get'?'readonly':'readwrite'),s=tx.objectStore('data'),r=mode==='get'?s.get(storageKey):mode==='put'?s.put(value,storageKey):s.delete(storageKey);tx.oncomplete=()=>{db.close();resolve(r.result);};tx.onerror=tx.onabort=()=>{db.close();reject(Error('브라우저 저장 실패'));};}catch(e){db.close();reject(e);}};});const result=queue.then(action,action);queue=result.catch(()=>{});return result;}
  const clear=()=>{layer?.remove();layer=null;};

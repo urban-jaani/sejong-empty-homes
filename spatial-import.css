@@ -139,6 +139,32 @@
   #vacancyReviewPrint th:first-child { width: 21%; }
   #vacancyReviewPrint td p:last-child { margin: 0; }
   #vacancyReviewPrint .review-print-notes { min-height: 7mm; border-bottom: 1px solid #a9b6ac; }
+  #vacancyReviewPrint h3 { margin: 0 0 1mm; font-size: 9pt; break-after: avoid; }
+  #vacancyReviewPrint .review-print-candidate,
+  #vacancyReviewPrint .review-print-chart { break-inside: avoid; }
+  #vacancyReviewPrint .review-print-charts { columns: 2; column-gap: 4mm; }
+  #vacancyReviewPrint .review-print-chart {
+    border: 1px solid #a9b6ac;
+    margin: 0 0 2mm;
+    padding: 2mm;
+  }
+  #vacancyReviewPrint .review-print-chart-row {
+    display: grid;
+    grid-template-columns: 16mm 1fr 20mm;
+    align-items: center;
+    gap: 1.5mm;
+  }
+  #vacancyReviewPrint .review-print-chart-row > :last-child { text-align: right; }
+  #vacancyReviewPrint .review-print-track {
+    display: block;
+    height: 2mm;
+    border-left: 1px solid #81928a;
+  }
+  #vacancyReviewPrint .review-print-track > span {
+    display: block;
+    border-top: 2mm solid #246653;
+  }
+  #vacancyReviewPrint .review-print-chart p { margin: 1mm 0 0; font-size: 8pt; }
 }
 
 .service-review-scope{font-size:11px;color:#21664f;font-weight:700}.service-review-card{border:1px solid #dbe5dc;border-radius:7px;padding:10px;margin:10px 0;background:#fafcf9}.service-review-card h4{margin:7px 0!important;font-size:13px!important}.service-review-card p,.service-review-card li,.service-review-card summary{font-size:11px;line-height:1.7}.service-review-card ul{padding-left:17px}.service-review-card button{font-size:11px!important}.service-review-badge{font-size:10px;display:inline-block;padding:2px 7px;border-radius:4px;background:#edf2ed;color:#526656}.service-review-badge.link{background:#e5f2e9;color:#23684a}.service-review-badge.investigate{background:#fff3df;color:#805917}.service-review-badge.hold{background:#edf0f3;color:#647082}

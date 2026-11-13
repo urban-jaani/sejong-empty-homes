@@ -52,17 +52,6 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  inputPanel.append(el('h3','연도별 1km 격자 인구·가구'),demographicsFile,demographicsErase,demographicsStatus);
  const demographicsBox=el('section');
  demographicsBox.id='gridDemographics';
- const indicator=el('select');
- for(const [index,[label]] of DEMOGRAPHIC_SERIES.entries()){
-  const option=el('option',label);
-  option.value=String(index);
-  indicator.append(option);
- }
- indicator.value='0';
- const indicatorLabel=el('label','조회 지표 ');
- indicatorLabel.append(indicator);
- const demographicsControls=el('div',undefined,'nearby-review-controls');
- demographicsControls.append(indicatorLabel);
  const demographicsChart=el('div');
  let demographics=null,demographicsSerial=0;
  const mapButton=el('button','격자인구 지도보기');mapButton.type='button';mapButton.setAttribute('aria-pressed','false');
@@ -74,7 +63,7 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  radius.value='500';
  const radiusLabel=el('label','빈집 기준 반경 ');radiusLabel.append(radius);
  const controls=el('div',undefined,'nearby-review-controls');controls.append(radiusLabel,mapButton);
- box.append(summary,body,demographicsBox);host.append(box);let data=null,selected=null,showOnMap=false,layer=null,serial=0,queue=Promise.resolve();const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':grid-population-trend:v1';
+ box.append(summary,body);host.append(box);let data=null,selected=null,showOnMap=false,layer=null,serial=0,queue=Promise.resolve();const key='sejong-dashboard:v1:'+new URL('.',root.location.href).pathname+':grid-population-trend:v1';
  const demographicsKey=key+':demographics-1km';
  root.VacancyGridPopulationTrend.evidence=(point,radius=500)=>data?analyze(data,point,radius):{state:'missing'};
  const notify=()=>root.dispatchEvent(new Event('vacancy-grid-trend-data-changed'));
@@ -82,10 +71,9 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  const clear=()=>{layer?.remove();layer=null;};
  const current=()=>data?analyze(data,selected?.point,Number(radius.value)):null;
  function draw(m=current()){clear();const map=root.VacancyNeighborhoodMapBridge?.getMap?.();if(!showOnMap||m?.state!=='ready'||!map||!root.L||!root.VacancyNeighborhoodMap?.cellGeometry)return;if(!map.getPane('gridPopulationChange')){map.createPane('gridPopulationChange');map.getPane('gridPopulationChange').style.zIndex=415;}layer=root.L.layerGroup().addTo(map);for(const c of m.rows){const delta=change(c[5]).delta,tip=el('span',c[0]+' · '+data.years[0]+'→'+data.years[2]+': '+(delta===null?'비교 보류':(delta>0?'+':'')+delta+'명'));root.L.geoJSON({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[root.VacancyNeighborhoodMap.cellGeometry(c[1],c[2])]}},{pane:'gridPopulationChange',style:{color:m.cell?.[0]===c[0]?'#174c32':'#738575',weight:m.cell?.[0]===c[0]?2:.4,fillColor:color(c[5]),fillOpacity:.5}}).bindTooltip(tip).addTo(layer);}}
- function populationChart(title,years,values,unit='명'){
+ function populationChart(title,years,values,unit='명',max=Math.max(1,...values)){
   const group=el('section',undefined,'population-trend-group');
   group.append(el('h4',title));
-  const max=Math.max(1,...values);
   for(const [index,year] of years.entries()){
    const value=values[index],row=el('div',undefined,'population-trend-row');
    const track=el('span',undefined,'population-trend-track');
@@ -103,19 +91,24 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
  function renderDemographics(){
   demographicsChart.replaceChildren();
   const cell=demographics&&demographicCell(demographics,selected?.point);
-  demographicsControls.hidden=!cell;
   if(!demographics||!cell){
    const message=!demographics?'자료관리 → 분석자료에서 1km 격자 인구·가구 JSON을 연결하세요.':
     selected?.point?.every(Number.isFinite)?'선택한 위치의 1km 격자 자료가 없습니다.':'좌표가 있는 빈집을 선택하세요.';
    demographicsChart.append(el('p',message,'spatial-note'));
    return;
   }
-  const index=Number(indicator.value),[label,unit]=DEMOGRAPHIC_SERIES[index];
-  demographicsChart.append(populationChart(label,demographics.years,cell[index+3],unit),
+  const [[householdLabel,householdUnit],...ageSeries]=DEMOGRAPHIC_SERIES;
+  const [households,...ageValues]=cell.slice(3);
+  const ageMax=Math.max(1,...ageValues.flat());
+  const ageChart=el('section');
+  ageChart.append(el('h5','연령별 인구'),el('p','연령대별 막대는 같은 눈금을 사용합니다.','spatial-note'));
+  for(const [index,[label,unit]] of ageSeries.entries()){
+   ageChart.append(populationChart(label,demographics.years,ageValues[index],unit,ageMax));
+  }
+  demographicsChart.append(populationChart(householdLabel,demographics.years,households,householdUnit),ageChart,
    el('p','SGIS 인구주택총조사 · 격자 코드 '+cell[0]+' · 연령대 합계는 세부 구간 값이 모두 있는 해에 표시합니다.','spatial-note'));
  }
- demographicsBox.append(el('h4','빈집이 속한 1km 격자 인구·가구'),demographicsControls,demographicsChart);
- indicator.onchange=renderDemographics;
+ demographicsBox.append(el('h4','빈집이 속한 1km 격자 인구·가구'),demographicsChart);
  demographicsFile.onchange=async()=>{
   const source=demographicsFile.files?.[0];
   if(!source)return;
@@ -166,10 +159,11 @@ function init(){if(new URL(root.location.href).searchParams.get('view')!=='reuse
    const {cell,range,years}=m;
    const cellChart=populationChart('빈집이 속한 100m 격자 거주인구',years,cell?.[5]??years.map(()=>null));
    if(cell)cellChart.append(el('p','격자 코드 '+cell[0],'spatial-note'));
-   body.append(cellChart,controls,populationChart('반경 '+m.radius.toLocaleString('ko-KR')+'m 거주인구',years,range.values),
+   body.append(cellChart,demographicsBox,controls,populationChart('반경 '+m.radius.toLocaleString('ko-KR')+'m 거주인구',years,range.values),
     el('p','중심점이 반경 안에 있고 3개 연도 모두 값이 있는 100m 격자 '+range.common+'/'+range.expected+'개 합계','spatial-note'));
    if(showOnMap)body.append(el('p','파랑 증가 / 주황 감소 / 밝은색 동일 / 회색 미제공','spatial-note'));
   }
+  if(mapButton.disabled)body.append(demographicsBox);
   mapButton.setAttribute('aria-pressed',String(showOnMap&&!mapButton.disabled));
   renderDemographics();
   draw(m);
